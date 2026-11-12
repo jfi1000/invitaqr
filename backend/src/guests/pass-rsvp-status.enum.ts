@@ -1,0 +1,6 @@
+export enum PassRsvpStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  DECLINED = 'DECLINED',
+  WAITLIST = 'WAITLIST',
+}

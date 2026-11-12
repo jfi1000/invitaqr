@@ -1,0 +1,12 @@
+{
+  "name": "InvitaQR Acceso",
+  "short_name": "InvitaQR",
+  "description": "Escáner de acceso para el personal del evento",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "lang": "es"
+}
