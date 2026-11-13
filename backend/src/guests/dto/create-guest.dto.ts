@@ -48,6 +48,19 @@ export class CreateGuestDto {
   @Min(0)
   max_companions?: number;
 
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  table_number?: number;
+
+  @ApiPropertyOptional({ example: 'VIP' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  zone?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

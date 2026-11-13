@@ -6,13 +6,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { isEmail, validate, ValidationError } from 'class-validator';
+import QRCode from 'qrcode';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Event } from '../events/event.entity';
 import { EventPlan } from '../events/event-plan.enum';
 import { EventStatus } from '../events/event-status.enum';
+import { EventType } from '../events/event-type.enum';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -30,7 +33,7 @@ const PLAN_GUEST_LIMIT: Record<EventPlan, number> = {
 
 const COLUMN_ALIASES: Record<
   string,
-  'name' | 'phone' | 'email' | 'max_companions' | 'notes'
+  'name' | 'phone' | 'email' | 'max_companions' | 'table_number' | 'zone' | 'notes'
 > = {
   name: 'name',
   nombre: 'name',
@@ -44,6 +47,10 @@ const COLUMN_ALIASES: Record<
   max_companions: 'max_companions',
   acompanantes: 'max_companions',
   companions: 'max_companions',
+  table_number: 'table_number',
+  mesa: 'table_number',
+  zone: 'zone',
+  zona: 'zone',
   notes: 'notes',
   notas: 'notes',
 };
@@ -79,9 +86,25 @@ export interface GuestView {
   phone: string | null;
   email: string | null;
   maxCompanions: number;
+  tableNumber: number | null;
+  zone: string | null;
   notes: string | null;
   createdAt: Date;
   pass: PassView | null;
+}
+
+export interface PassQrView {
+  guestName: string;
+  eventName: string;
+  eventType: EventType;
+  logo: string | null;
+  tableNumber: number | null;
+  maxCompanions: number;
+  zone: string | null;
+  companionsConfirmed: number;
+  qrDataUrl: string;
+  shareUrl: string;
+  rsvpStatus: PassRsvpStatus;
 }
 
 export interface ImportRejection {
@@ -101,6 +124,8 @@ interface NormalizedGuest {
   phone: string | null;
   email: string | null;
   maxCompanions: number;
+  tableNumber: number | null;
+  zone: string | null;
   notes: string | null;
   phoneKey: string | null;
   emailKey: string | null;
@@ -124,6 +149,7 @@ export class GuestsService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly config: ConfigService,
   ) {}
 
   async createOne(
@@ -179,6 +205,88 @@ export class GuestsService {
   ): Promise<ImportGuestsResult> {
     const parsed = await this.parseText(text);
     return this.finishImport(eventId, userId, parsed);
+  }
+
+  async getPassQr(
+    eventId: string,
+    passId: string,
+    userId: string,
+  ): Promise<PassQrView> {
+    const event = await this.requireOwnedEvent(eventId, userId);
+    const pass = await this.passes.findOne({ where: { id: passId, eventId } });
+    if (!pass) {
+      throw new NotFoundException({
+        error: 'PASS_NOT_FOUND',
+        message: 'Pase no encontrado',
+      });
+    }
+    if (pass.rsvpStatus !== PassRsvpStatus.CONFIRMED || !pass.qrToken) {
+      throw new BadRequestException({
+        error: 'QR_NOT_READY',
+        message: 'El invitado aún no ha confirmado',
+      });
+    }
+    const guest = await this.guests.findOne({ where: { id: pass.guestId } });
+    if (!guest) {
+      throw new NotFoundException({
+        error: 'GUEST_NOT_FOUND',
+        message: 'Invitado no encontrado',
+      });
+    }
+    const qrDataUrl = await QRCode.toDataURL(pass.qrToken, {
+      errorCorrectionLevel: 'L',
+      margin: 1,
+      width: 360,
+      type: 'image/png',
+    });
+    const appUrl = (
+      this.config.get<string>('APP_URL') || 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    return {
+      guestName: guest.name,
+      eventName: event.name,
+      eventType: event.type ?? EventType.SOCIAL,
+      logo: event.logo ?? null,
+      tableNumber: event.hasTables ? guest.tableNumber : null,
+      maxCompanions: guest.maxCompanions,
+      zone: event.hasZones ? guest.zone : null,
+      companionsConfirmed: pass.companionsConfirmed,
+      qrDataUrl,
+      shareUrl: `${appUrl}/rsvp/${pass.rsvpToken}`,
+      rsvpStatus: pass.rsvpStatus,
+    };
+  }
+
+  async ensurePasses(
+    eventId: string,
+    userId: string,
+  ): Promise<{ created: number; guests: GuestView[] }> {
+    await this.requireOwnedEvent(eventId, userId);
+    const guests = await this.guests.find({ where: { eventId } });
+    const passes = await this.passes.find({ where: { eventId } });
+    const covered = new Set(passes.map((pass) => pass.guestId));
+    const missing = guests.filter((guest) => !covered.has(guest.id));
+    if (missing.length > 0) {
+      await this.passes.save(
+        missing.map((guest) =>
+          this.passes.create({
+            guestId: guest.id,
+            eventId,
+            rsvpToken: randomUUID(),
+            qrToken: null,
+            rsvpStatus: PassRsvpStatus.PENDING,
+            companionsConfirmed: 0,
+            accessStatus: PassAccessStatus.NOT_ACCESSED,
+            accessedAt: null,
+            rsvpAt: null,
+          }),
+        ),
+      );
+    }
+    return {
+      created: missing.length,
+      guests: await this.findAll(eventId, userId),
+    };
   }
 
   async findAll(eventId: string, userId: string): Promise<GuestView[]> {
@@ -256,7 +364,7 @@ export class GuestsService {
       const ready: NormalizedGuest[] = [];
       let skipped = duplicates;
       for (const dto of payload.guests) {
-        const normalized = this.normalize(dto);
+        const normalized = this.normalize(dto, event.defaultMaxCompanions);
         if (!normalized.guest) {
           if (strictDuplicates) {
             throw new BadRequestException({
@@ -330,6 +438,8 @@ export class GuestsService {
           phone: guest.phone,
           email: guest.email,
           maxCompanions: guest.maxCompanions,
+          tableNumber: guest.tableNumber,
+          zone: guest.zone,
           notes: guest.notes,
         }),
       ),
@@ -436,6 +546,8 @@ export class GuestsService {
     const phoneIndex = header.indexOf('phone');
     const emailIndex = header.indexOf('email');
     const companionsIndex = header.indexOf('max_companions');
+    const tableIndex = header.indexOf('table_number');
+    const zoneIndex = header.indexOf('zone');
     const notesIndex = header.indexOf('notes');
     if (nameIndex < 0) {
       throw new BadRequestException({
@@ -463,11 +575,20 @@ export class GuestsService {
         parsed.rejected.push({ line, reason: companions.error });
         continue;
       }
+      const tableNumber = readOptionalInt(
+        tableIndex >= 0 ? cells[tableIndex] : undefined,
+      );
+      if (tableNumber.error) {
+        parsed.rejected.push({ line, reason: tableNumber.error });
+        continue;
+      }
       const dto = plainToInstance(CreateGuestDto, {
         name: cells[nameIndex] ?? '',
         phone: phoneIndex >= 0 ? blankToUndefined(cells[phoneIndex]) : undefined,
         email: emailIndex >= 0 ? blankToUndefined(cells[emailIndex]) : undefined,
         max_companions: companions.value,
+        table_number: tableNumber.value,
+        zone: zoneIndex >= 0 ? blankToUndefined(cells[zoneIndex]) : undefined,
         notes: notesIndex >= 0 ? blankToUndefined(cells[notesIndex]) : undefined,
       });
       const errors = await validate(dto);
@@ -560,12 +681,15 @@ export class GuestsService {
     dto.phone = guest.phone ?? undefined;
     dto.email = guest.email ?? undefined;
     dto.max_companions = guest.maxCompanions;
+    dto.table_number = guest.tableNumber ?? undefined;
+    dto.zone = guest.zone ?? undefined;
     dto.notes = guest.notes ?? undefined;
     return dto;
   }
 
   private normalize(
     dto: CreateGuestDto,
+    defaultMaxCompanions = 0,
   ): { guest?: NormalizedGuest; error?: string } {
     const name = dto.name?.trim() ?? '';
     if (!name) {
@@ -585,10 +709,18 @@ export class GuestsService {
     if (!phone.phone && !email.email) {
       return { error: 'El invitado debe tener teléfono o correo' };
     }
-    const maxCompanions = dto.max_companions ?? 0;
+    const maxCompanions = dto.max_companions ?? defaultMaxCompanions;
     if (!Number.isInteger(maxCompanions) || maxCompanions < 0) {
       return { error: 'Los acompañantes máximos no son válidos' };
     }
+    const tableNumber =
+      dto.table_number === undefined || dto.table_number === null
+        ? null
+        : dto.table_number;
+    if (tableNumber !== null && (!Number.isInteger(tableNumber) || tableNumber < 1)) {
+      return { error: 'El número de mesa no es válido' };
+    }
+    const zone = dto.zone?.trim() || null;
     const notes = dto.notes?.trim();
     return {
       guest: {
@@ -596,6 +728,8 @@ export class GuestsService {
         phone: phone.phone,
         email: email.email,
         maxCompanions,
+        tableNumber,
+        zone,
         notes: notes ? notes : null,
         phoneKey: phone.phone,
         emailKey: email.email,
@@ -633,6 +767,8 @@ export class GuestsService {
       phone: guest.phone,
       email: guest.email,
       maxCompanions: guest.maxCompanions,
+      tableNumber: guest.tableNumber,
+      zone: guest.zone,
       notes: guest.notes,
       createdAt: guest.createdAt,
       pass: pass
@@ -680,6 +816,23 @@ function readCompanions(raw: string | undefined): {
     return { value: 0, error: 'Los acompañantes máximos no son válidos' };
   }
   return { value: Number(raw.trim()) };
+}
+
+function readOptionalInt(raw: string | undefined): {
+  value?: number;
+  error?: string;
+} {
+  if (!raw?.trim()) {
+    return {};
+  }
+  if (!/^\d+$/.test(raw.trim())) {
+    return { error: 'El número de mesa no es válido' };
+  }
+  const value = Number(raw.trim());
+  if (value < 1) {
+    return { error: 'El número de mesa no es válido' };
+  }
+  return { value };
 }
 
 function flattenErrors(errors: ValidationError[]): string {

@@ -72,6 +72,23 @@ export class GuestsController {
     return this.guestsService.importText(eventId, body.text, user.id);
   }
 
+  @Post('ensure-passes')
+  ensurePasses(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.guestsService.ensurePasses(eventId, user.id);
+  }
+
+  @Get('passes/:passId/qr')
+  getPassQr(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('passId', ParseUUIDPipe) passId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.guestsService.getPassQr(eventId, passId, user.id);
+  }
+
   @Post()
   create(
     @Param('eventId', ParseUUIDPipe) eventId: string,

@@ -18,8 +18,18 @@ async function bootstrap() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(requestLogger);
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : [
+        'http://localhost:8081',
+        'http://localhost:8082',
+        'http://localhost:8083',
+        /\.ngrok-free\.app$/,
+        /\.exp\.direct$/,
+      ];
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
   });
   app.useGlobalPipes(

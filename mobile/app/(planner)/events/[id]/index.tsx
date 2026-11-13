@@ -1,83 +1,236 @@
-import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Pressable, ScrollView, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useGlobalSearchParams, useLocalSearchParams, useRouter, useSegments } from 'expo-router'
+import { useState } from 'react'
+import { Image, Text, View } from 'react-native'
+import {
+  buildEventPayload,
+  emptyEventEditorValues,
+  EventEditorFields,
+  EventEditorValues,
+} from '../../../../components/EventEditorFields'
 import { StatusBadge } from '../../../../components/StatusBadge'
+import { AppButton } from '../../../../components/ui/AppButton'
+import { Screen } from '../../../../components/ui/Screen'
+import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
 import { useChangeEventStatus, useEvent } from '../../../../hooks/useEvents'
-import { apiErrorMessage } from '../../../../lib/api'
-import { formatWhen } from '../../../../lib/format'
+import { apiErrorMessage, updateEvent } from '../../../../lib/api'
+import { eventLogo } from '../../../../lib/brand'
+import { fromIsoLocal, formatWhen, toIso } from '../../../../lib/format'
+import { backToEventList } from '../../../../lib/navigation'
+import { queryKeys } from '../../../../lib/query'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function routeId(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? ''
-  return value ?? ''
+  const raw = Array.isArray(value) ? value[0] : value
+  return raw && UUID.test(raw) ? raw : ''
+}
+
+function InfoRow({ icon, text }: { icon: string; text: string }) {
+  return (
+    <View className="mt-3 flex-row items-start gap-3">
+      <Text className="text-lg">{icon}</Text>
+      <Text className="flex-1 text-base text-inkwell" style={{ fontFamily: 'Inter_500Medium' }}>
+        {text}
+      </Text>
+    </View>
+  )
 }
 
 export default function EventDetailScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ id: string }>()
-  const id = routeId(params.id)
+  const local = useLocalSearchParams<{ id?: string }>()
+  const global = useGlobalSearchParams<{ id?: string }>()
+  const segments = useSegments()
+  const id =
+    routeId(local.id) ||
+    routeId(global.id) ||
+    segments.map(String).reverse().find((segment) => UUID.test(segment)) ||
+    ''
   const eventQuery = useEvent(id)
   const changeStatus = useChangeEventStatus(id)
   const event = eventQuery.data
+  const client = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [values, setValues] = useState<EventEditorValues>(emptyEventEditorValues())
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (!values.name.trim()) {
+        throw new Error('Escribe el nombre del evento')
+      }
+      const startsAt = toIso(values.starts)
+      if (!startsAt) {
+        throw new Error('Elige la fecha y hora de inicio')
+      }
+      if (new Date(startsAt).getTime() < Date.now()) {
+        throw new Error('La fecha de inicio no puede estar en el pasado')
+      }
+      const endsAt = values.ends.trim() ? toIso(values.ends) : startsAt
+      if (!endsAt || new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
+        throw new Error('La fecha de fin no puede ser anterior a la de inicio')
+      }
+      if (values.type === 'social' && values.hasTables) {
+        const tables = Number(values.tableCount)
+        if (!Number.isFinite(tables) || tables < 1) {
+          throw new Error('Indica cuántas mesas tendrá el evento')
+        }
+      }
+      if (values.type === 'entertainment' && values.hasZones && !values.zones.trim()) {
+        throw new Error('Escribe las zonas separadas por coma')
+      }
+      const payload = buildEventPayload(values)
+      return updateEvent(id, {
+        ...payload,
+        starts_at: startsAt,
+        ends_at: values.ends.trim() ? endsAt : startsAt,
+      })
+    },
+    onSuccess: (updated) => {
+      client.setQueryData(queryKeys.event(id), updated)
+      void client.invalidateQueries({ queryKey: queryKeys.events })
+      setEditing(false)
+      setFormError(null)
+    },
+    onError: (caught) => {
+      const own =
+        caught instanceof Error &&
+        (caught.message.startsWith('Escribe') ||
+          caught.message.startsWith('Elige') ||
+          caught.message.startsWith('La fecha') ||
+          caught.message.startsWith('Indica') ||
+          caught.message.startsWith('Escribe las zonas'))
+      setFormError(own ? caught.message : apiErrorMessage(caught))
+    },
+  })
+
+  function openEdit() {
+    if (!event) return
+    setValues({
+      name: event.name,
+      location: event.location ?? '',
+      starts: fromIsoLocal(event.startsAt),
+      ends: fromIsoLocal(event.endsAt),
+      plan: event.plan,
+      type: event.type ?? 'social',
+      hasTables: Boolean(event.hasTables),
+      tableCount: event.tableCount ? String(event.tableCount) : '',
+      hasZones: Boolean(event.hasZones),
+      zones: event.zones ?? '',
+      logo: event.logo,
+    })
+    setFormError(null)
+    setEditing(true)
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-paper px-5">
-      <Pressable onPress={() => router.back()} className="py-2">
-        <Text className="text-base font-bold text-stone-600">Volver</Text>
-      </Pressable>
-      {eventQuery.isLoading ? <Text className="text-lg">Cargando…</Text> : null}
+    <Screen scroll>
+      <ScreenHeader
+        title="Evento"
+        eyebrow="InvitaQR"
+        onBack={() => backToEventList(router)}
+      />
+      {!id ? <Text className="mt-4 text-base text-red-700">No encontramos este evento.</Text> : null}
+      {id && eventQuery.isPending ? (
+        <Text className="mt-4 text-base text-mute">Cargando…</Text>
+      ) : null}
       {eventQuery.isError ? (
-        <Text className="text-base text-red-700">{apiErrorMessage(eventQuery.error)}</Text>
+        <Text className="mt-4 text-base text-red-700">{apiErrorMessage(eventQuery.error)}</Text>
       ) : null}
       {event ? (
-        <ScrollView>
-          <View className="mt-2 flex-row items-start justify-between gap-3">
-            <Text className="flex-1 text-4xl font-bold text-ink">{event.name}</Text>
-            <StatusBadge value={event.status} />
-          </View>
-          <Text className="mt-4 text-lg text-stone-700">{formatWhen(event.startsAt)}</Text>
-          <Text className="text-lg text-stone-700">a {formatWhen(event.endsAt)}</Text>
-          <Text className="mt-3 text-lg text-stone-600">{event.location || 'Sin lugar'}</Text>
-          <View className="mt-3 flex-row gap-2">
-            <StatusBadge value={event.plan} />
-            <Text className="self-center text-base text-stone-600">
-              Cupo {event.capacity}
+        <View>
+          <View className="items-center rounded-[28px] border border-line bg-card px-5 pb-6 pt-7">
+            <Image
+              source={{ uri: eventLogo(event.logo) }}
+              style={{ width: 88, height: 88, borderRadius: 24, backgroundColor: '#4334d6' }}
+            />
+            <Text
+              className="mt-4 text-center"
+              style={{
+                fontFamily: 'Inter_700Bold',
+                fontSize: 28,
+                lineHeight: 34,
+                letterSpacing: -0.4,
+                color: '#111111',
+              }}
+            >
+              {event.name}
             </Text>
+            <View className="mt-4 flex-row flex-wrap items-center justify-center gap-2">
+              <StatusBadge value={event.plan} large />
+              <StatusBadge value={event.status} />
+              <StatusBadge value={event.type ?? 'social'} />
+            </View>
           </View>
-          {event.description ? (
-            <Text className="mt-4 text-lg text-ink">{event.description}</Text>
-          ) : null}
+
+          <View className="mt-4 rounded-[28px] border border-line bg-card px-5 py-4">
+            <InfoRow
+              icon="📅"
+              text={`${formatWhen(event.startsAt)} → ${formatWhen(event.endsAt)}`}
+            />
+            <InfoRow icon="🗺️" text={event.location || 'Sin lugar definido'} />
+            <InfoRow icon="👥" text={`Cupo ${event.capacity} personas`} />
+            {event.type === 'social' && event.hasTables ? (
+              <InfoRow icon="🪑" text={`${event.tableCount ?? 0} mesas`} />
+            ) : null}
+            {event.type === 'entertainment' && event.hasZones ? (
+              <InfoRow icon="🎟️" text={`Zonas: ${event.zones}`} />
+            ) : null}
+            {event.description ? (
+              <Text className="mt-4 text-base text-inkwell" style={{ fontFamily: 'Inter_500Medium' }}>
+                {event.description}
+              </Text>
+            ) : null}
+          </View>
 
           {event.status === 'DRAFT' ? (
-            <Pressable
-              className="mt-6 items-center rounded-2xl bg-ink py-4"
-              disabled={changeStatus.isPending}
+            <AppButton
+              className="mt-5"
+              label={changeStatus.isPending ? 'Activando…' : 'Activar evento'}
+              loading={changeStatus.isPending}
               onPress={() => changeStatus.mutate('ACTIVE')}
-            >
-              <Text className="text-lg font-bold text-white">
-                {changeStatus.isPending ? 'Activando…' : 'Activar evento'}
-              </Text>
-            </Pressable>
+            />
           ) : null}
           {changeStatus.isError ? (
-            <Text className="mt-3 text-base text-red-700">
-              {apiErrorMessage(changeStatus.error)}
-            </Text>
+            <Text className="mt-3 text-base text-red-700">{apiErrorMessage(changeStatus.error)}</Text>
           ) : null}
 
-          <Pressable
-            className="mt-4 items-center rounded-2xl border border-ink py-4"
+          <AppButton
+            className="mt-4"
+            label="Ver invitados"
             onPress={() => router.push(`/(planner)/events/${id}/guests`)}
-          >
-            <Text className="text-lg font-bold text-ink">Invitados</Text>
-          </Pressable>
-          <Pressable
-            className="mt-3 items-center rounded-2xl border border-ink py-4"
+          />
+          <AppButton
+            className="mt-3"
+            label="Ver pases"
             onPress={() => router.push(`/(planner)/events/${id}/passes`)}
-          >
-            <Text className="text-lg font-bold text-ink">Pases</Text>
-          </Pressable>
-        </ScrollView>
+          />
+          <AppButton className="mt-3" label="Editar evento" variant="secondary" onPress={openEdit} />
+
+          {editing ? (
+            <View className="mt-6 rounded-[28px] border border-line bg-card p-4">
+              <Text
+                className="text-[28px] text-inkwell"
+                style={{ fontFamily: 'Inter_600SemiBold', letterSpacing: -0.5 }}
+              >
+                Editar evento
+              </Text>
+              <EventEditorFields
+                values={values}
+                onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
+              />
+              {formError ? <Text className="mt-3 text-base text-red-700">{formError}</Text> : null}
+              <AppButton
+                className="mt-4"
+                label={save.isPending ? 'Guardando…' : 'Guardar'}
+                loading={save.isPending}
+                onPress={() => save.mutate()}
+              />
+            </View>
+          ) : null}
+        </View>
       ) : null}
-    </SafeAreaView>
+    </Screen>
   )
 }

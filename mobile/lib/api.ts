@@ -1,5 +1,4 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
-import Constants from 'expo-constants'
 import { clearPersistedSession, persistSession, useAuthStore } from '../stores/auth.store'
 import type {
   AuthUser,
@@ -15,14 +14,13 @@ interface RetryConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
 }
 
-function resolveApiUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL
-  const fromExtra = Constants.expoConfig?.extra?.apiUrl as string | undefined
-  return (fromEnv || fromExtra || 'http://localhost:3000').replace(/\/$/, '')
-}
+const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').replace(
+  /\/$/,
+  '',
+)
 
 export const api = axios.create({
-  baseURL: resolveApiUrl(),
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -50,7 +48,7 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null
   try {
     const response = await axios.post<{ data: Session }>(
-      `${resolveApiUrl()}/auth/refresh`,
+      `${API_URL}/auth/refresh`,
       { refreshToken },
     )
     const session = response.data.data
@@ -129,11 +127,28 @@ export async function createEvent(input: CreateEventInput): Promise<PlannerEvent
   return unwrap(response.data)
 }
 
+export async function updateEvent(
+  id: string,
+  input: Partial<CreateEventInput>,
+): Promise<PlannerEvent> {
+  const response = await api.patch<{ data: PlannerEvent }>(`/events/${id}`, input)
+  return unwrap(response.data)
+}
+
 export async function changeEventStatus(
   id: string,
   status: PlannerEvent['status'],
 ): Promise<PlannerEvent> {
   const response = await api.patch<{ data: PlannerEvent }>(`/events/${id}/status`, { status })
+  return unwrap(response.data)
+}
+
+export async function ensurePasses(
+  eventId: string,
+): Promise<{ created: number; guests: GuestView[] }> {
+  const response = await api.post<{ data: { created: number; guests: GuestView[] } }>(
+    `/events/${eventId}/guests/ensure-passes`,
+  )
   return unwrap(response.data)
 }
 
@@ -158,16 +173,33 @@ export async function importGuestText(eventId: string, text: string): Promise<Im
   return unwrap(response.data)
 }
 
+export async function getPassQr(
+  eventId: string,
+  passId: string,
+): Promise<import('./types').PassQrView> {
+  const response = await api.get<{ data: import('./types').PassQrView }>(
+    `/events/${eventId}/guests/passes/${passId}/qr`,
+  )
+  return unwrap(response.data)
+}
+
 export async function importGuestCsv(
   eventId: string,
-  file: { uri: string; name: string; mimeType?: string | null },
+  file: { uri: string; name: string; mimeType?: string | null; file?: File | Blob },
 ): Promise<ImportResult> {
   const body = new FormData()
-  body.append('file', {
-    uri: file.uri,
-    name: file.name,
-    type: file.mimeType || 'text/csv',
-  } as unknown as Blob)
+  if (file.file) {
+    body.append('file', file.file, file.name)
+  } else if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
+    const blob = await fetch(file.uri).then((response) => response.blob())
+    body.append('file', blob, file.name)
+  } else {
+    body.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType || 'text/csv',
+    } as unknown as Blob)
+  }
   const response = await api.post<{ data: ImportResult }>(
     `/events/${eventId}/guests/import-csv`,
     body,

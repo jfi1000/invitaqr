@@ -1,6 +1,22 @@
 import * as SecureStore from 'expo-secure-store'
+import { Platform } from 'react-native'
 import { create } from 'zustand'
 import type { AuthUser, Session } from '../lib/types'
+
+const webStorage = {
+  async getItemAsync(key: string): Promise<string | null> {
+    if (typeof localStorage === 'undefined') return null
+    return localStorage.getItem(key)
+  },
+  async setItemAsync(key: string, value: string): Promise<void> {
+    localStorage.setItem(key, value)
+  },
+  async deleteItemAsync(key: string): Promise<void> {
+    localStorage.removeItem(key)
+  },
+}
+
+const storage = Platform.OS === 'web' ? webStorage : SecureStore
 
 const ACCESS_KEY = 'invitaqr.access'
 const REFRESH_KEY = 'invitaqr.refresh'
@@ -41,24 +57,24 @@ export const useAuthStore = create<AuthState>((set) => ({
 }))
 
 export async function persistSession(session: Session): Promise<void> {
-  await SecureStore.setItemAsync(ACCESS_KEY, session.accessToken)
-  await SecureStore.setItemAsync(REFRESH_KEY, session.refreshToken)
-  await SecureStore.setItemAsync(USER_KEY, JSON.stringify(session.user))
+  await storage.setItemAsync(ACCESS_KEY, session.accessToken)
+  await storage.setItemAsync(REFRESH_KEY, session.refreshToken)
+  await storage.setItemAsync(USER_KEY, JSON.stringify(session.user))
   useAuthStore.getState().setSession(session)
 }
 
 export async function clearPersistedSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(ACCESS_KEY)
-  await SecureStore.deleteItemAsync(REFRESH_KEY)
-  await SecureStore.deleteItemAsync(USER_KEY)
+  await storage.deleteItemAsync(ACCESS_KEY)
+  await storage.deleteItemAsync(REFRESH_KEY)
+  await storage.deleteItemAsync(USER_KEY)
   useAuthStore.getState().clear()
 }
 
 export async function hydrateSession(): Promise<void> {
   try {
-    const accessToken = await SecureStore.getItemAsync(ACCESS_KEY)
-    const refreshToken = await SecureStore.getItemAsync(REFRESH_KEY)
-    const rawUser = await SecureStore.getItemAsync(USER_KEY)
+    const accessToken = await storage.getItemAsync(ACCESS_KEY)
+    const refreshToken = await storage.getItemAsync(REFRESH_KEY)
+    const rawUser = await storage.getItemAsync(USER_KEY)
     const user = rawUser ? (JSON.parse(rawUser) as AuthUser) : null
     if (accessToken && refreshToken && user) {
       useAuthStore.getState().setSession({ accessToken, refreshToken, user })

@@ -25,6 +25,12 @@ export class Guest {
   @Column({ name: 'max_companions', type: 'int', default: 0 })
   maxCompanions: number;
 
+  @Column({ name: 'table_number', type: 'int', nullable: true })
+  tableNumber: number | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  zone: string | null;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

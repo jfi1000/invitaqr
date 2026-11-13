@@ -13,6 +13,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { Event } from './event.entity';
 import { EventPlan } from './event-plan.enum';
 import { EventStatus } from './event-status.enum';
+import { EventType } from './event-type.enum';
 
 const PLAN_CAPACITY: Record<EventPlan, number> = {
   [EventPlan.FREE]: 50,
@@ -41,9 +42,10 @@ export class EventsService {
     const capacity = dto.capacity ?? Math.min(100, PLAN_CAPACITY[plan]);
     this.assertCapacity(plan, capacity);
     const startsAt = new Date(dto.starts_at);
-    const endsAt = new Date(dto.ends_at);
+    const endsAt = dto.ends_at ? new Date(dto.ends_at) : new Date(startsAt);
     this.assertDates(startsAt, endsAt);
 
+    const extras = this.resolveTypeExtras(dto);
     const event = this.events.create({
       ownerId: user.id,
       name: dto.name.trim(),
@@ -55,6 +57,8 @@ export class EventsService {
       rsvpDeadline: dto.rsvp_deadline ? new Date(dto.rsvp_deadline) : null,
       plan,
       status: EventStatus.DRAFT,
+      ...extras,
+      logo: this.normalizeLogo(dto.logo),
     });
 
     return this.events.save(event);
@@ -63,7 +67,45 @@ export class EventsService {
   async findAll(user: AuthUser): Promise<Event[]> {
     this.assertCanManage(user);
     const where = user.role === UserRole.OWNER ? {} : { ownerId: user.id };
-    return this.events.find({ where, order: { createdAt: 'DESC' } });
+    const events = await this.events.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
+    if (events.length === 0) {
+      return events;
+    }
+
+    const ids = events.map((event) => event.id);
+    const rows: {
+      eventId: string;
+      guestCount: number | string;
+      confirmedCount: number | string;
+    }[] = await this.dataSource.query(
+      `SELECT
+         e.id AS "eventId",
+         (SELECT COUNT(*)::int FROM guests g WHERE g.event_id = e.id) AS "guestCount",
+         COUNT(*) FILTER (WHERE p.rsvp_status = 'CONFIRMED')::int AS "confirmedCount"
+       FROM events e
+       LEFT JOIN passes p ON p.event_id = e.id
+       WHERE e.id = ANY($1::uuid[])
+       GROUP BY e.id`,
+      [ids],
+    );
+    const byId = new Map(
+      rows.map((row) => [
+        row.eventId,
+        {
+          guestCount: Number(row.guestCount ?? 0),
+          confirmedCount: Number(row.confirmedCount ?? 0),
+        },
+      ]),
+    );
+
+    for (const event of events) {
+      const stats = byId.get(event.id) ?? { guestCount: 0, confirmedCount: 0 };
+      Object.assign(event, stats);
+    }
+    return events;
   }
 
   async findOne(user: AuthUser, id: string): Promise<Event> {
@@ -100,6 +142,29 @@ export class EventsService {
     event.endsAt = endsAt;
     event.capacity = capacity;
     event.plan = plan;
+
+    if (
+      dto.type !== undefined ||
+      dto.has_tables !== undefined ||
+      dto.table_count !== undefined ||
+      dto.default_max_companions !== undefined ||
+      dto.has_zones !== undefined ||
+      dto.zones !== undefined
+    ) {
+      const extras = this.resolveTypeExtras({
+        type: dto.type ?? event.type,
+        has_tables: dto.has_tables ?? event.hasTables,
+        table_count: dto.table_count ?? event.tableCount ?? undefined,
+        default_max_companions:
+          dto.default_max_companions ?? event.defaultMaxCompanions,
+        has_zones: dto.has_zones ?? event.hasZones,
+        zones: dto.zones ?? event.zones ?? undefined,
+      });
+      Object.assign(event, extras);
+    }
+    if (dto.logo !== undefined) {
+      event.logo = this.normalizeLogo(dto.logo);
+    }
 
     return this.events.save(event);
   }
@@ -155,10 +220,10 @@ export class EventsService {
   }
 
   private assertDates(startsAt: Date, endsAt: Date): void {
-    if (!(endsAt.getTime() > startsAt.getTime())) {
+    if (endsAt.getTime() < startsAt.getTime()) {
       throw new BadRequestException({
         error: 'VALIDATION_ERROR',
-        message: 'La fecha de fin debe ser posterior a la de inicio',
+        message: 'La fecha de fin no puede ser anterior a la de inicio',
       });
     }
   }
@@ -177,6 +242,88 @@ export class EventsService {
         message: 'El plan debe estar pagado antes de activar el evento',
       });
     }
+  }
+
+  private resolveTypeExtras(dto: {
+    type?: EventType;
+    has_tables?: boolean;
+    table_count?: number | null;
+    default_max_companions?: number;
+    has_zones?: boolean;
+    zones?: string | null;
+  }): {
+    type: EventType;
+    hasTables: boolean;
+    tableCount: number | null;
+    defaultMaxCompanions: number;
+    hasZones: boolean;
+    zones: string | null;
+  } {
+    const type = dto.type ?? EventType.SOCIAL;
+    if (type === EventType.SOCIAL) {
+      const hasTables = Boolean(dto.has_tables);
+      return {
+        type,
+        hasTables,
+        tableCount: hasTables ? dto.table_count ?? null : null,
+        defaultMaxCompanions: dto.default_max_companions ?? 0,
+        hasZones: false,
+        zones: null,
+      };
+    }
+    if (type === EventType.ENTERTAINMENT) {
+      const hasZones = Boolean(dto.has_zones);
+      return {
+        type,
+        hasTables: false,
+        tableCount: null,
+        defaultMaxCompanions: 0,
+        hasZones,
+        zones: hasZones ? this.normalizeZones(dto.zones ?? null) : null,
+      };
+    }
+    return {
+      type,
+      hasTables: false,
+      tableCount: null,
+      defaultMaxCompanions: 0,
+      hasZones: false,
+      zones: null,
+    };
+  }
+
+  private normalizeZones(value: string | null): string | null {
+    if (!value?.trim()) {
+      return null;
+    }
+    const parts = value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : null;
+  }
+
+  private normalizeLogo(value?: string | null): string | null {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.length > 2_000_000) {
+      throw new BadRequestException({
+        error: 'VALIDATION_ERROR',
+        message: 'El logo es demasiado grande',
+      });
+    }
+    if (!trimmed.startsWith('data:image/')) {
+      throw new BadRequestException({
+        error: 'VALIDATION_ERROR',
+        message: 'El logo debe ser una imagen',
+      });
+    }
+    return trimmed;
   }
 
   private emptyToNull(value: string | undefined): string | null {

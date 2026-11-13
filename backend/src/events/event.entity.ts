@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { EventPlan } from './event-plan.enum';
 import { EventStatus } from './event-status.enum';
+import { EventType } from './event-type.enum';
 
 @Entity('events')
 export class Event {
@@ -42,6 +43,27 @@ export class Event {
 
   @Column({ type: 'varchar', length: 20, default: EventStatus.DRAFT })
   status: EventStatus;
+
+  @Column({ type: 'varchar', length: 30, default: EventType.SOCIAL })
+  type: EventType;
+
+  @Column({ name: 'has_tables', type: 'boolean', default: false })
+  hasTables: boolean;
+
+  @Column({ name: 'table_count', type: 'int', nullable: true })
+  tableCount: number | null;
+
+  @Column({ name: 'default_max_companions', type: 'int', default: 0 })
+  defaultMaxCompanions: number;
+
+  @Column({ name: 'has_zones', type: 'boolean', default: false })
+  hasZones: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  zones: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  logo: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

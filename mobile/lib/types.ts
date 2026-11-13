@@ -15,6 +15,7 @@ export interface Session {
 
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'CANCELLED'
 export type EventPlan = 'FREE' | 'BASIC' | 'PRO'
+export type EventType = 'social' | 'corporate' | 'educational' | 'entertainment'
 export type RsvpStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'WAITLIST'
 
 export interface PlannerEvent {
@@ -29,6 +30,15 @@ export interface PlannerEvent {
   rsvpDeadline: string | null
   plan: EventPlan
   status: EventStatus
+  type: EventType
+  hasTables: boolean
+  tableCount: number | null
+  defaultMaxCompanions: number
+  hasZones: boolean
+  zones: string | null
+  logo: string | null
+  guestCount?: number
+  confirmedCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -53,9 +63,25 @@ export interface GuestView {
   phone: string | null
   email: string | null
   maxCompanions: number
+  tableNumber: number | null
+  zone: string | null
   notes: string | null
   createdAt: string
   pass: PassView | null
+}
+
+export interface PassQrView {
+  guestName: string
+  eventName: string
+  eventType: EventType
+  logo: string | null
+  tableNumber: number | null
+  maxCompanions: number
+  zone: string | null
+  companionsConfirmed: number
+  qrDataUrl: string
+  shareUrl: string
+  rsvpStatus: string
 }
 
 export interface ImportResult {
@@ -69,9 +95,16 @@ export interface CreateEventInput {
   name: string
   location?: string
   starts_at: string
-  ends_at: string
+  ends_at?: string
   capacity?: number
   plan?: EventPlan
+  type?: EventType
+  has_tables?: boolean
+  table_count?: number
+  default_max_companions?: number
+  has_zones?: boolean
+  zones?: string
+  logo?: string | null
 }
 
 export interface CreateGuestInput {
@@ -79,5 +112,7 @@ export interface CreateGuestInput {
   phone?: string
   email?: string
   max_companions?: number
+  table_number?: number
+  zone?: string
   notes?: string
 }

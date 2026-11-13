@@ -18,20 +18,28 @@ CREATE TABLE users (
 -- EVENTOS
 -- ─────────────────────────────────────────────
 CREATE TABLE events (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  owner_id      UUID          NOT NULL REFERENCES users(id),
-  name          VARCHAR(200)  NOT NULL,
-  description   TEXT,
-  location      VARCHAR(300),
-  starts_at     TIMESTAMPTZ   NOT NULL,
-  ends_at       TIMESTAMPTZ   NOT NULL,
-  capacity      INT           NOT NULL DEFAULT 100,
-  rsvp_deadline TIMESTAMPTZ,
-  plan          VARCHAR(20)   DEFAULT 'FREE' CHECK (plan IN ('FREE','BASIC','PRO')),
-  status        VARCHAR(20)   DEFAULT 'DRAFT'
-                CHECK (status IN ('DRAFT','ACTIVE','CLOSED','CANCELLED')),
-  created_at    TIMESTAMPTZ   DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ   DEFAULT NOW()
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  owner_id                UUID          NOT NULL REFERENCES users(id),
+  name                    VARCHAR(200)  NOT NULL,
+  description             TEXT,
+  location                VARCHAR(300),
+  starts_at               TIMESTAMPTZ   NOT NULL,
+  ends_at                 TIMESTAMPTZ   NOT NULL,
+  capacity                INT           NOT NULL DEFAULT 100,
+  rsvp_deadline           TIMESTAMPTZ,
+  plan                    VARCHAR(20)   DEFAULT 'FREE' CHECK (plan IN ('FREE','BASIC','PRO')),
+  status                  VARCHAR(20)   DEFAULT 'DRAFT'
+                          CHECK (status IN ('DRAFT','ACTIVE','CLOSED','CANCELLED')),
+  type                    VARCHAR(30)   NOT NULL DEFAULT 'social'
+                          CHECK (type IN ('social','corporate','educational','entertainment')),
+  has_tables              BOOLEAN       NOT NULL DEFAULT FALSE,
+  table_count             INT,
+  default_max_companions  INT           NOT NULL DEFAULT 0,
+  has_zones               BOOLEAN       NOT NULL DEFAULT FALSE,
+  zones                   TEXT,
+  logo                    TEXT,
+  created_at              TIMESTAMPTZ   DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
 -- ─────────────────────────────────────────────
@@ -44,6 +52,8 @@ CREATE TABLE guests (
   phone          VARCHAR(20),
   email          VARCHAR(255),
   max_companions INT          NOT NULL DEFAULT 0,
+  table_number   INT,
+  zone           VARCHAR(100),
   notes          TEXT,
   created_at     TIMESTAMPTZ  DEFAULT NOW()
 );
