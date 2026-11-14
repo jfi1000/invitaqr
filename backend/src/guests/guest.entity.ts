@@ -34,6 +34,9 @@ export class Guest {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  @Column({ name: 'invite_sent_at', type: 'timestamptz', nullable: true })
+  inviteSentAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

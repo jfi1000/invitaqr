@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsInt,
   IsOptional,
@@ -65,4 +66,11 @@ export class CreateGuestDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Si es true, tras crear se envía la invitación RSVP por correo. */
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === 1)
+  @IsBoolean()
+  send_invite?: boolean;
 }

@@ -1,6 +1,8 @@
 import * as ImagePicker from 'expo-image-picker'
+import { useState } from 'react'
 import { Image, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { DateTimeField } from './DateTimeField'
+import { VenueMapPicker } from './VenueMapPicker'
 import { FieldLabel } from './ui/FieldLabel'
 import { AppButton } from './ui/AppButton'
 import { eventLogo } from '../lib/brand'
@@ -16,7 +18,10 @@ const TYPES: { value: EventType; label: string }[] = [
 
 export interface EventEditorValues {
   name: string
+  venueName: string
   location: string
+  latitude: number | null
+  longitude: number | null
   starts: string
   ends: string
   plan: EventPlan
@@ -37,6 +42,10 @@ const inputClass =
   'rounded-2xl border border-line bg-white px-4 py-4 text-base text-inkwell'
 
 export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) {
+  const [mapOpen, setMapOpen] = useState(false)
+  const pinReady =
+    typeof values.latitude === 'number' && typeof values.longitude === 'number'
+
   async function pickLogo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
@@ -68,14 +77,64 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
         value={values.name}
         onChangeText={(name) => onChange({ name })}
       />
-      <FieldLabel>Lugar</FieldLabel>
+      <FieldLabel>Nombre del lugar</FieldLabel>
       <TextInput
         className={inputClass}
         style={{ fontFamily: 'Inter_500Medium' }}
-        placeholder="Salón o dirección"
+        placeholder="Salón Jardín Las Palmas"
+        placeholderTextColor="#8d86a6"
+        value={values.venueName}
+        onChangeText={(venueName) => onChange({ venueName })}
+      />
+      <FieldLabel>Ubicación / dirección</FieldLabel>
+      <TextInput
+        className={inputClass}
+        style={{ fontFamily: 'Inter_500Medium' }}
+        placeholder="Av. Reforma 120, Xalapa"
         placeholderTextColor="#8d86a6"
         value={values.location}
-        onChangeText={(location) => onChange({ location })}
+        onChangeText={(location) =>
+          onChange({ location, latitude: null, longitude: null })
+        }
+      />
+      <View className="mt-3 rounded-3xl border border-line bg-mist/70 px-4 py-3">
+        <Text className="text-sm text-mute" style={{ fontFamily: 'Inter_500Medium' }}>
+          {pinReady
+            ? `Pin listo · ${values.latitude!.toFixed(5)}, ${values.longitude!.toFixed(5)}`
+            : 'Aún no hay pin. Ubica el mapa para marcar el punto exacto.'}
+        </Text>
+        <AppButton
+          className="mt-3"
+          label={pinReady ? 'Ajustar pin en el mapa' : 'Ubicar en el mapa'}
+          variant="secondary"
+          onPress={() => setMapOpen(true)}
+        />
+        {pinReady ? (
+          <AppButton
+            className="mt-2"
+            label="Quitar pin"
+            variant="ghost"
+            onPress={() => onChange({ latitude: null, longitude: null })}
+          />
+        ) : null}
+      </View>
+      <VenueMapPicker
+        visible={mapOpen}
+        venueName={values.venueName}
+        address={values.location}
+        initial={
+          pinReady
+            ? { latitude: values.latitude!, longitude: values.longitude! }
+            : null
+        }
+        onClose={() => setMapOpen(false)}
+        onConfirm={(point) => {
+          onChange({
+            latitude: point.latitude,
+            longitude: point.longitude,
+          })
+          setMapOpen(false)
+        }}
       />
       <FieldLabel>Tipo</FieldLabel>
       <View className="flex-row flex-wrap gap-2">
@@ -209,7 +268,10 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
 export function emptyEventEditorValues(): EventEditorValues {
   return {
     name: '',
+    venueName: '',
     location: '',
+    latitude: null,
+    longitude: null,
     starts: '',
     ends: '',
     plan: 'FREE',
@@ -226,7 +288,16 @@ export function buildEventPayload(values: EventEditorValues) {
   const tableCount = Number(values.tableCount)
   return {
     name: values.name.trim(),
+    venue_name: values.venueName.trim() || undefined,
     location: values.location.trim() || undefined,
+    latitude:
+      typeof values.latitude === 'number' && Number.isFinite(values.latitude)
+        ? values.latitude
+        : null,
+    longitude:
+      typeof values.longitude === 'number' && Number.isFinite(values.longitude)
+        ? values.longitude
+        : null,
     plan: values.plan,
     type: values.type,
     has_tables: values.type === 'social' ? values.hasTables : false,

@@ -7,6 +7,7 @@ import type {
   GuestView,
   ImportResult,
   PlannerEvent,
+  RsvpView,
   Session,
 } from './types'
 
@@ -165,6 +166,16 @@ export async function createGuest(
   return unwrap(response.data)
 }
 
+export async function sendGuestInvite(
+  eventId: string,
+  guestId: string,
+): Promise<GuestView> {
+  const response = await api.post<{ data: GuestView }>(
+    `/events/${eventId}/guests/${guestId}/send-invite`,
+  )
+  return unwrap(response.data)
+}
+
 export async function importGuestText(eventId: string, text: string): Promise<ImportResult> {
   const response = await api.post<{ data: ImportResult }>(
     `/events/${eventId}/guests/import-text`,
@@ -180,6 +191,23 @@ export async function getPassQr(
   const response = await api.get<{ data: import('./types').PassQrView }>(
     `/events/${eventId}/guests/passes/${passId}/qr`,
   )
+  return unwrap(response.data)
+}
+
+export async function getRsvp(token: string): Promise<RsvpView> {
+  const response = await api.get<{ data: RsvpView }>(`/rsvp/${token}`)
+  return unwrap(response.data)
+}
+
+export async function confirmRsvp(token: string, companions: number): Promise<RsvpView> {
+  const response = await api.post<{ data: RsvpView }>(`/rsvp/${token}/confirm`, {
+    companions,
+  })
+  return unwrap(response.data)
+}
+
+export async function declineRsvp(token: string): Promise<RsvpView> {
+  const response = await api.post<{ data: RsvpView }>(`/rsvp/${token}/decline`, {})
   return unwrap(response.data)
 }
 

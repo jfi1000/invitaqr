@@ -24,6 +24,7 @@ import {
   getGuests,
   importGuestCsv,
   importGuestText,
+  sendGuestInvite,
 } from '../../../../lib/api'
 import { queryKeys } from '../../../../lib/query'
 import type { ImportResult } from '../../../../lib/types'
@@ -153,9 +154,17 @@ export default function GuestsScreen() {
   }
 
   const addOne = useMutation({
-    mutationFn: () => {
+    mutationFn: (sendInvite: boolean) => {
       const valid = validateGuestForm()
       if (!valid) {
+        throw new Error('VALIDATION')
+      }
+      if (sendInvite && !email.trim()) {
+        setFieldErrors((current) => ({
+          ...current,
+          contact: 'Para enviar la invitación necesitas un correo',
+        }))
+        setError('Revisa los campos marcados en rojo')
         throw new Error('VALIDATION')
       }
       return createGuest(eventId, {
@@ -164,11 +173,13 @@ export default function GuestsScreen() {
         email: email.trim() || undefined,
         max_companions: valid.maxCompanions,
         table_number: valid.table_number,
+        send_invite: sendInvite,
       })
     },
-    onSuccess: () => {
+    onSuccess: (_guest, sendInvite) => {
       setMode(null)
       resetGuestForm()
+      setSummary(sendInvite ? 'Invitado guardado e invitación enviada.' : 'Invitado guardado.')
       refresh()
     },
     onError: (caught) => {
@@ -177,6 +188,16 @@ export default function GuestsScreen() {
       }
       setError(apiErrorMessage(caught))
     },
+  })
+
+  const resendInvite = useMutation({
+    mutationFn: (guestId: string) => sendGuestInvite(eventId, guestId),
+    onSuccess: () => {
+      setSummary('Invitación enviada.')
+      setError(null)
+      refresh()
+    },
+    onError: (caught) => setError(apiErrorMessage(caught)),
   })
 
   const pasteText = useMutation({
@@ -320,11 +341,35 @@ export default function GuestsScreen() {
               ? `${item.maxCompanions} acompañante${item.maxCompanions === 1 ? '' : 's'}`
               : 'Sin acompañantes'
           const tableLabel = item.tableNumber ? `Mesa ${item.tableNumber}` : null
+          const inviteSent = Boolean(item.inviteSentAt)
+          const canSend =
+            Boolean(item.email) && eventQuery.data?.status === 'ACTIVE'
           return (
             <GuestItem
               name={item.name}
               detail={[contact, companionsLabel, tableLabel].filter(Boolean).join(' · ')}
-              badge={item.pass ? <StatusBadge value={item.pass.rsvpStatus} /> : undefined}
+              badge={
+                <View className="items-end gap-1">
+                  <StatusBadge value={inviteSent ? 'INVITE_SENT' : 'INVITE_PENDING'} />
+                  {item.pass ? <StatusBadge value={item.pass.rsvpStatus} /> : null}
+                </View>
+              }
+              action={
+                canSend ? (
+                  <AppButton
+                    label={
+                      resendInvite.isPending && resendInvite.variables === item.id
+                        ? 'Enviando…'
+                        : inviteSent
+                          ? 'Reenviar invitación'
+                          : 'Enviar invitación'
+                    }
+                    variant="secondary"
+                    loading={resendInvite.isPending && resendInvite.variables === item.id}
+                    onPress={() => resendInvite.mutate(item.id)}
+                  />
+                ) : undefined
+              }
             />
           )
         }}
@@ -439,9 +484,26 @@ export default function GuestsScreen() {
               {error ? <Text className="mt-3 text-sm text-red-600">{error}</Text> : null}
               <AppButton
                 className="mt-6"
-                label={addOne.isPending ? 'Guardando…' : 'Guardar'}
-                loading={addOne.isPending}
-                onPress={() => addOne.mutate()}
+                label={
+                  addOne.isPending && addOne.variables === false
+                    ? 'Guardando…'
+                    : 'Guardar invitado'
+                }
+                loading={addOne.isPending && addOne.variables === false}
+                disabled={addOne.isPending}
+                onPress={() => addOne.mutate(false)}
+              />
+              <AppButton
+                className="mt-2"
+                label={
+                  addOne.isPending && addOne.variables === true
+                    ? 'Enviando…'
+                    : 'Guardar y enviar invitación'
+                }
+                variant="secondary"
+                loading={addOne.isPending && addOne.variables === true}
+                disabled={addOne.isPending}
+                onPress={() => addOne.mutate(true)}
               />
             </>
           ) : (

@@ -17,6 +17,8 @@ const LABELS: Record<string, string> = {
   corporate: 'Corporativo',
   educational: 'Educativo',
   entertainment: 'Entretenimiento',
+  INVITE_SENT: 'Invitación enviada',
+  INVITE_PENDING: 'Sin enviar',
 }
 
 const TONES: Record<string, { box: string; text: string }> = {
@@ -35,6 +37,8 @@ const TONES: Record<string, { box: string; text: string }> = {
   corporate: { box: 'bg-mist', text: 'text-indigo' },
   educational: { box: 'bg-mist', text: 'text-indigo' },
   entertainment: { box: 'bg-mist', text: 'text-indigo' },
+  INVITE_SENT: { box: 'bg-sky-100', text: 'text-sky-800' },
+  INVITE_PENDING: { box: 'bg-stone-100', text: 'text-stone-600' },
   OWNER: { box: 'bg-inkwell', text: 'text-white' },
   PLANNER: { box: 'bg-indigo', text: 'text-white' },
   STAFF: { box: 'bg-amber-100', text: 'text-amber-800' },

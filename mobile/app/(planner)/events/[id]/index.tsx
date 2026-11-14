@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGlobalSearchParams, useLocalSearchParams, useRouter, useSegments } from 'expo-router'
 import { useState } from 'react'
-import { Image, Text, View } from 'react-native'
+import { Image, Linking, Text, View } from 'react-native'
 import {
   buildEventPayload,
   emptyEventEditorValues,
@@ -18,6 +18,7 @@ import { eventLogo } from '../../../../lib/brand'
 import { fromIsoLocal, formatWhen, toIso } from '../../../../lib/format'
 import { backToEventList } from '../../../../lib/navigation'
 import { queryKeys } from '../../../../lib/query'
+import { mapsUrl } from '../../../../lib/venue'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -109,7 +110,10 @@ export default function EventDetailScreen() {
     if (!event) return
     setValues({
       name: event.name,
+      venueName: event.venueName ?? '',
       location: event.location ?? '',
+      latitude: event.latitude ?? null,
+      longitude: event.longitude ?? null,
       starts: fromIsoLocal(event.startsAt),
       ends: fromIsoLocal(event.endsAt),
       plan: event.plan,
@@ -169,7 +173,42 @@ export default function EventDetailScreen() {
               icon="📅"
               text={`${formatWhen(event.startsAt)} → ${formatWhen(event.endsAt)}`}
             />
-            <InfoRow icon="🗺️" text={event.location || 'Sin lugar definido'} />
+            <InfoRow
+              icon="🏛️"
+              text={event.venueName || 'Sin nombre de lugar'}
+            />
+            <InfoRow
+              icon="🗺️"
+              text={event.location || 'Sin dirección definida'}
+            />
+            {typeof event.latitude === 'number' &&
+            typeof event.longitude === 'number' ? (
+              <InfoRow
+                icon="📌"
+                text={`Pin ${event.latitude.toFixed(5)}, ${event.longitude.toFixed(5)}`}
+              />
+            ) : null}
+            {event.venueName ||
+            event.location ||
+            (typeof event.latitude === 'number' &&
+              typeof event.longitude === 'number') ? (
+              <View className="mt-3">
+                <AppButton
+                  label="Abrir en Maps"
+                  variant="secondary"
+                  onPress={() =>
+                    void Linking.openURL(
+                      mapsUrl({
+                        venueName: event.venueName,
+                        location: event.location,
+                        latitude: event.latitude,
+                        longitude: event.longitude,
+                      }),
+                    )
+                  }
+                />
+              </View>
+            ) : null}
             <InfoRow icon="👥" text={`Cupo ${event.capacity} personas`} />
             {event.type === 'social' && event.hasTables ? (
               <InfoRow icon="🪑" text={`${event.tableCount ?? 0} mesas`} />

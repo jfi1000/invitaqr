@@ -3,6 +3,7 @@ import { eventLogo } from '../lib/brand'
 import { formatEventRange } from '../lib/format'
 import { type as typography } from '../lib/typography'
 import type { PlannerEvent } from '../lib/types'
+import { formatVenueLine } from '../lib/venue'
 import { StatusBadge } from './StatusBadge'
 
 interface EventCardProps {
@@ -10,20 +11,36 @@ interface EventCardProps {
   onPress: () => void
 }
 
-function Stat({
-  label,
+function Metric({
   value,
+  label,
   hint,
 }: {
-  label: string
   value: string
+  label: string
   hint?: string
 }) {
   return (
-    <View className="flex-1">
-      <Text style={[typography.caption, { marginBottom: 4 }]}>{label}</Text>
-      <Text style={[typography.section, { fontSize: 18 }]}>{value}</Text>
-      {hint ? <Text style={[typography.caption, { marginTop: 2 }]}>{hint}</Text> : null}
+    <View className="flex-1 items-center px-2 py-2">
+      <Text
+        style={{
+          fontFamily: 'Oswald_600SemiBold',
+          fontSize: 28,
+          lineHeight: 32,
+          letterSpacing: 0.5,
+          color: '#111111',
+        }}
+      >
+        {value}
+      </Text>
+      <Text style={[typography.caption, { marginTop: 2, textAlign: 'center' }]}>
+        {label}
+      </Text>
+      {hint ? (
+        <Text style={[typography.caption, { marginTop: 1, textAlign: 'center', fontSize: 11 }]}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   )
 }
@@ -54,36 +71,41 @@ export function EventCard({ event, onPress }: EventCardProps) {
             </Text>
             <StatusBadge value={event.status} />
           </View>
-          <Text style={[typography.caption, { marginTop: 8 }]} numberOfLines={2}>
+          <Text style={[typography.caption, { marginTop: 6 }]} numberOfLines={2}>
             📅 {formatEventRange(event.startsAt, event.endsAt)}
           </Text>
-          <View className="mt-2 flex-row flex-wrap items-center gap-2">
+          <Text style={[typography.caption, { marginTop: 4 }]} numberOfLines={2}>
+            📍 {formatVenueLine(event.venueName, event.location)}
+            {typeof event.latitude === 'number' && typeof event.longitude === 'number'
+              ? ' · pin'
+              : ''}
+          </Text>
+          <View className="mt-2.5 flex-row flex-wrap items-center gap-2">
             <StatusBadge value={event.plan} />
-            <Text style={typography.caption}>{event.location || 'Sin lugar'}</Text>
+            {event.type ? <StatusBadge value={event.type} /> : null}
           </View>
         </View>
       </View>
 
-      <View className="mt-4 border-t border-line pt-3">
-        <View className="flex-row gap-3">
-          <Stat label="Número de invitados" value={String(invited)} />
-          <Stat
-            label="Confirmados"
+      <View className="mt-3.5 overflow-hidden rounded-2xl bg-mist">
+        <View className="flex-row items-stretch">
+          <Metric value={String(invited)} label="Invitados" />
+          <View style={{ width: 1, backgroundColor: '#e6e2f2', marginVertical: 10 }} />
+          <Metric
             value={String(confirmed)}
-            hint={invited > 0 ? `${confirmedPct}% de invitados` : 'Sin RSVP aún'}
+            label="Confirmados"
+            hint={invited > 0 ? `${confirmedPct}%` : undefined}
           />
         </View>
         {capacity > 0 ? (
-          <View className="mt-3">
+          <View className="border-t border-line px-3 py-2.5">
             <View className="mb-1.5 flex-row items-center justify-between">
-              <Text style={typography.caption}>
-                Cupo del plan · {capacity}
-              </Text>
-              <Text style={typography.caption}>{invitedPct}%</Text>
+              <Text style={typography.caption}>Cupo del plan · {capacity}</Text>
+              <Text style={[typography.caption, { color: '#4334d6' }]}>{invitedPct}%</Text>
             </View>
-            <View className="h-2 overflow-hidden rounded-full bg-mist">
+            <View className="h-1.5 overflow-hidden rounded-full bg-white">
               <View
-                className="h-2 rounded-full bg-indigo"
+                className="h-1.5 rounded-full bg-indigo"
                 style={{ width: `${invitedPct}%` }}
               />
             </View>

@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -27,11 +28,33 @@ export class CreateEventDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ maxLength: 300 })
+  @ApiPropertyOptional({ maxLength: 300, description: 'Dirección / ubicación' })
   @IsOptional()
   @IsString()
   @MaxLength(300)
   location?: string;
+
+  @ApiPropertyOptional({ maxLength: 200, description: 'Nombre del lugar' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  venue_name?: string;
+
+  @ApiPropertyOptional({ description: 'Latitud del pin en el mapa' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ description: 'Longitud del pin en el mapa' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
 
   @ApiProperty({ example: '2026-12-01T18:00:00.000Z' })
   @IsDateString()

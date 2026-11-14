@@ -23,6 +23,9 @@ CREATE TABLE events (
   name                    VARCHAR(200)  NOT NULL,
   description             TEXT,
   location                VARCHAR(300),
+  venue_name              VARCHAR(200),
+  latitude                DOUBLE PRECISION,
+  longitude               DOUBLE PRECISION,
   starts_at               TIMESTAMPTZ   NOT NULL,
   ends_at                 TIMESTAMPTZ   NOT NULL,
   capacity                INT           NOT NULL DEFAULT 100,
@@ -55,6 +58,7 @@ CREATE TABLE guests (
   table_number   INT,
   zone           VARCHAR(100),
   notes          TEXT,
+  invite_sent_at TIMESTAMPTZ,
   created_at     TIMESTAMPTZ  DEFAULT NOW()
 );
 

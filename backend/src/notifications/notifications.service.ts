@@ -22,21 +22,38 @@ export class NotificationsService {
   async sendRsvpInvite(guest: Guest, pass: Pass, event: Event): Promise<void> {
     const url = this.rsvpUrl(pass.rsvpToken);
     const when = this.formatWhen(event.startsAt);
+    const place =
+      [event.venueName?.trim(), event.location?.trim()].filter(Boolean).join(' · ') ||
+      'lugar por confirmar';
     await this.sendEmail(
       guest.email ?? '',
-      `Invitación: ${event.name}`,
+      `${guest.name.split(/\s+/)[0] || guest.name}, te esperan en ${event.name}`,
       rsvpInviteTemplate({
         guestName: guest.name,
         eventName: event.name,
         when,
+        venueName: event.venueName,
         location: event.location,
         rsvpUrl: url,
       }),
+      [
+        `Hola ${guest.name},`,
+        '',
+        `Hay un lugar guardado con tu nombre en ${event.name}.`,
+        `Cuándo: ${when}`,
+        `Dónde: ${place}`,
+        '',
+        `Confirma aquí: ${url}`,
+        '',
+        'Tu enlace es personal. Si no puedes ir, también puedes avisarnos desde ahí.',
+        '',
+        '— InvitaQR',
+      ].join('\n'),
     );
     await this.sendProWhatsApp(
       guest,
       event,
-      `Hola ${guest.name}. Te invitaron a ${event.name} el ${when}. Confirma aquí: ${url}`,
+      `Hola ${guest.name}. Te esperan en ${event.name} el ${when}. Confirma aquí: ${url}`,
     );
   }
 
@@ -45,15 +62,31 @@ export class NotificationsService {
     const qrDataUrl = await this.qrImage(pass.qrToken);
     await this.sendEmail(
       guest.email ?? '',
-      `Tu acceso está confirmado: ${event.name}`,
+      `Listo: tu lugar en ${event.name} está confirmado`,
       rsvpConfirmedTemplate({
         guestName: guest.name,
         eventName: event.name,
         when,
+        venueName: event.venueName,
         location: event.location,
         companions: pass.companionsConfirmed,
         qrDataUrl,
       }),
+      [
+        `Hola ${guest.name},`,
+        '',
+        `Tu lugar en ${event.name} quedó confirmado.`,
+        `Cuándo: ${when}`,
+        [event.venueName, event.location].filter(Boolean).length
+          ? `Dónde: ${[event.venueName, event.location].filter(Boolean).join(' · ')}`
+          : '',
+        '',
+        'Tu código QR de acceso llegó en la versión HTML de este correo.',
+        '',
+        '— InvitaQR',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     );
     await this.sendProWhatsApp(
       guest,
@@ -65,23 +98,41 @@ export class NotificationsService {
   async sendDeclined(guest: Guest, event: Event): Promise<void> {
     await this.sendEmail(
       guest.email ?? '',
-      `Respuesta registrada: ${event.name}`,
+      `Gracias por avisar sobre ${event.name}`,
       rsvpDeclinedTemplate({
         guestName: guest.name,
         eventName: event.name,
       }),
+      [
+        `Hola ${guest.name},`,
+        '',
+        `Registramos que no podrás asistir a ${event.name}. Gracias por avisar.`,
+        '',
+        '— InvitaQR',
+      ].join('\n'),
     );
   }
 
   async sendWaitlist(guest: Guest, event: Event): Promise<void> {
+    const when = this.formatWhen(event.startsAt);
     await this.sendEmail(
       guest.email ?? '',
-      `Lista de espera: ${event.name}`,
+      `Quedaste en lista de espera para ${event.name}`,
       waitlistTemplate({
         guestName: guest.name,
         eventName: event.name,
-        when: this.formatWhen(event.startsAt),
+        when,
       }),
+      [
+        `Hola ${guest.name},`,
+        '',
+        `${event.name} se llenó, pero quedaste en lista de espera.`,
+        `Fecha: ${when}`,
+        '',
+        'Si se libera un lugar, te escribimos de inmediato.',
+        '',
+        '— InvitaQR',
+      ].join('\n'),
     );
   }
 
@@ -90,14 +141,23 @@ export class NotificationsService {
     const qrDataUrl = await this.qrImage(pass.qrToken);
     await this.sendEmail(
       guest.email ?? '',
-      `Recordatorio: ${event.name} es pronto`,
+      `${event.name} es pronto — ten tu pase a la mano`,
       rsvpReminderTemplate({
         guestName: guest.name,
         eventName: event.name,
         when,
+        venueName: event.venueName,
         location: event.location,
         qrDataUrl,
       }),
+      [
+        `Hola ${guest.name},`,
+        '',
+        `${event.name} es en las próximas 24 horas (${when}).`,
+        'Lleva el código QR que recibiste al confirmar.',
+        '',
+        '— InvitaQR',
+      ].join('\n'),
     );
     await this.sendProWhatsApp(
       guest,
@@ -110,6 +170,7 @@ export class NotificationsService {
     to: string,
     subject: string,
     html: string,
+    text?: string,
   ): Promise<void> {
     const recipient = to.trim();
     if (!recipient) {
@@ -117,19 +178,63 @@ export class NotificationsService {
       return;
     }
 
-    const host = this.config.get<string>('SMTP_HOST');
+    const host = this.config.get<string>('SMTP_HOST')?.trim();
     if (!host) {
       this.logger.warn(`Correo no enviado a ${recipient}: falta SMTP_HOST`);
-      return;
+      throw new Error('Falta configurar SMTP_HOST');
     }
 
     const port = Number(this.config.get<string>('SMTP_PORT') ?? 587);
-    const from =
-      this.config.get<string>('SMTP_FROM') ||
-      this.config.get<string>('SMTP_USER') ||
+    const smtpUser = this.config.get<string>('SMTP_USER')?.trim() || '';
+    const fromRaw =
+      this.config.get<string>('SMTP_FROM')?.trim() ||
+      smtpUser ||
       'InvitaQR <noreply@invitaqr.com>';
+    const from = this.parseFrom(fromRaw, smtpUser);
 
-    await this.mailer(host, port).sendMail({ from, to: recipient, subject, html });
+    try {
+      const info = await this.mailer(host, port).sendMail({
+        from,
+        sender: smtpUser || from.address,
+        replyTo: smtpUser || from.address,
+        to: recipient,
+        subject,
+        text:
+          text ||
+          'Abre este correo en un cliente que soporte HTML para ver tu invitación InvitaQR.',
+        html,
+        headers: {
+          'X-InvitaQR-Mail': 'rsvp',
+        },
+      });
+      this.logger.log(
+        `Correo enviado a ${recipient}: ${subject} (id=${info.messageId ?? 'n/a'} accepted=${JSON.stringify(info.accepted ?? [])})`,
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`SMTP falló hacia ${recipient}: ${detail}`);
+      throw error instanceof Error ? error : new Error(detail);
+    }
+  }
+
+  private parseFrom(
+    value: string,
+    fallbackAddress: string,
+  ): { name: string; address: string } {
+    const match = value.match(/^(.*?)\s*<([^>]+)>$/);
+    if (match) {
+      return {
+        name: match[1].replace(/^["']|["']$/g, '').trim() || 'InvitaQR',
+        address: match[2].trim(),
+      };
+    }
+    if (value.includes('@')) {
+      return { name: 'InvitaQR', address: value };
+    }
+    return {
+      name: 'InvitaQR',
+      address: fallbackAddress || 'noreply@invitaqr.com',
+    };
   }
 
   private async sendWhatsApp(phone: string, message: string): Promise<void> {

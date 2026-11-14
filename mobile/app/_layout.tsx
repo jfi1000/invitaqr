@@ -1,4 +1,5 @@
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter'
+import { Oswald_500Medium, Oswald_600SemiBold } from '@expo-google-fonts/oswald'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useEffect } from 'react'
@@ -21,7 +22,8 @@ function AuthGate() {
   useEffect(() => {
     if (!hydrated) return
     const inAuth = segments[0] === '(auth)'
-    if (!isAuthenticated && !inAuth) {
+    const inPublicRsvp = segments[0] === 'rsvp'
+    if (!isAuthenticated && !inAuth && !inPublicRsvp) {
       router.replace('/(auth)/login')
     } else if (isAuthenticated && inAuth) {
       router.replace('/(planner)')
@@ -33,6 +35,7 @@ function AuthGate() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(planner)" />
+      <Stack.Screen name="rsvp/[token]" />
     </Stack>
   )
 }
@@ -43,6 +46,8 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Oswald_500Medium,
+    Oswald_600SemiBold,
   })
   const hydrated = useAuthStore((state) => state.hydrated)
 

@@ -48,4 +48,12 @@ export const type = {
     lineHeight: 20,
     color: '#ffffff',
   } satisfies TextStyle,
+  /** Números de métricas: Oswald condensada/alargada. */
+  stat: {
+    fontFamily: 'Oswald_600SemiBold',
+    fontSize: 34,
+    lineHeight: 38,
+    letterSpacing: 0.4,
+    color: '#111111',
+  } satisfies TextStyle,
 }

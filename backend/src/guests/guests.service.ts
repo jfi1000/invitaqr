@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import { Event } from '../events/event.entity';
 import { EventPlan } from '../events/event-plan.enum';
 import { EventStatus } from '../events/event-status.enum';
 import { EventType } from '../events/event-type.enum';
+import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -89,6 +91,7 @@ export interface GuestView {
   tableNumber: number | null;
   zone: string | null;
   notes: string | null;
+  inviteSentAt: Date | null;
   createdAt: Date;
   pass: PassView | null;
 }
@@ -139,6 +142,8 @@ interface ParsedGuests {
 
 @Injectable()
 export class GuestsService {
+  private readonly logger = new Logger(GuestsService.name);
+
   constructor(
     @InjectRepository(Guest)
     private readonly guests: Repository<Guest>,
@@ -150,6 +155,7 @@ export class GuestsService {
     private readonly users: Repository<User>,
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createOne(
@@ -157,10 +163,14 @@ export class GuestsService {
     dto: CreateGuestDto,
     userId: string,
   ): Promise<GuestView> {
+    const sendInvite = Boolean(dto.send_invite);
+    const guestDto = Object.assign(new CreateGuestDto(), dto);
+    delete guestDto.send_invite;
+
     const result = await this.importGuests(
       eventId,
       userId,
-      Object.assign(new ImportGuestsDto(), { guests: [dto] }),
+      Object.assign(new ImportGuestsDto(), { guests: [guestDto] }),
       [],
       0,
       true,
@@ -172,7 +182,59 @@ export class GuestsService {
         message: 'No se pudo crear el invitado',
       });
     }
+    if (sendInvite) {
+      return this.sendInvite(eventId, guest.id, userId);
+    }
     return guest;
+  }
+
+  async sendInvite(
+    eventId: string,
+    guestId: string,
+    userId: string,
+  ): Promise<GuestView> {
+    const event = await this.requireOwnedEvent(eventId, userId);
+    if (event.status !== EventStatus.ACTIVE) {
+      throw new BadRequestException({
+        error: 'EVENT_NOT_ACTIVE',
+        message: 'Activa el evento para enviar invitaciones',
+      });
+    }
+    const guest = await this.guests.findOne({ where: { id: guestId, eventId } });
+    if (!guest) {
+      throw new NotFoundException({
+        error: 'GUEST_NOT_FOUND',
+        message: 'Invitado no encontrado',
+      });
+    }
+    if (!guest.email?.trim()) {
+      throw new BadRequestException({
+        error: 'GUEST_NO_EMAIL',
+        message: 'El invitado necesita un correo para enviar la invitación',
+      });
+    }
+    const pass = await this.passes.findOne({ where: { guestId, eventId } });
+    if (!pass) {
+      throw new NotFoundException({
+        error: 'PASS_NOT_FOUND',
+        message: 'Pase no encontrado',
+      });
+    }
+
+    try {
+      await this.notifications.sendRsvpInvite(guest, pass, event);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Fallo al enviar invitación a ${guest.email}: ${detail}`);
+      throw new BadRequestException({
+        error: 'INVITE_SEND_FAILED',
+        message: `No se pudo enviar el correo: ${detail}`,
+      });
+    }
+
+    guest.inviteSentAt = new Date();
+    const savedGuest = await this.guests.save(guest);
+    return this.toView(savedGuest, pass);
   }
 
   async importCsv(
@@ -342,7 +404,7 @@ export class GuestsService {
     strictDuplicates: boolean,
   ): Promise<ImportGuestsResult> {
     const rejectedRows = [...rejected];
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const event = await this.lockOwnedEvent(manager, eventId, userId);
       this.assertCanAddGuests(event);
 
@@ -412,21 +474,22 @@ export class GuestsService {
 
       const saved = await this.saveGuests(manager, eventId, ready);
       return {
-        imported: saved.length,
+        imported: saved.views.length,
         duplicates: skipped,
         rejected: rejectedRows,
-        guests: saved,
+        guests: saved.views,
       };
     });
+    return result;
   }
 
   private async saveGuests(
     manager: EntityManager,
     eventId: string,
     ready: NormalizedGuest[],
-  ): Promise<GuestView[]> {
+  ): Promise<{ views: GuestView[]; guests: Guest[]; passes: Pass[] }> {
     if (ready.length === 0) {
-      return [];
+      return { views: [], guests: [], passes: [] };
     }
     const guestsRepo = manager.getRepository(Guest);
     const passesRepo = manager.getRepository(Pass);
@@ -441,6 +504,7 @@ export class GuestsService {
           tableNumber: guest.tableNumber,
           zone: guest.zone,
           notes: guest.notes,
+          inviteSentAt: null,
         }),
       ),
     );
@@ -459,9 +523,13 @@ export class GuestsService {
         }),
       ),
     );
-    return savedGuests.map((guest, index) =>
-      this.toView(guest, savedPasses[index] ?? null),
-    );
+    return {
+      guests: savedGuests,
+      passes: savedPasses,
+      views: savedGuests.map((guest, index) =>
+        this.toView(guest, savedPasses[index] ?? null),
+      ),
+    };
   }
 
   private async requireOwnedEvent(
@@ -770,6 +838,7 @@ export class GuestsService {
       tableNumber: guest.tableNumber,
       zone: guest.zone,
       notes: guest.notes,
+      inviteSentAt: guest.inviteSentAt,
       createdAt: guest.createdAt,
       pass: pass
         ? {

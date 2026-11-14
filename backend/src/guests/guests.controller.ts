@@ -89,6 +89,15 @@ export class GuestsController {
     return this.guestsService.getPassQr(eventId, passId, user.id);
   }
 
+  @Post(':guestId/send-invite')
+  sendInvite(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('guestId', ParseUUIDPipe) guestId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.guestsService.sendInvite(eventId, guestId, user.id);
+  }
+
   @Post()
   create(
     @Param('eventId', ParseUUIDPipe) eventId: string,

@@ -1,26 +1,56 @@
-import { emailButton, escapeHtml, renderEmail } from './email-layout';
+import {
+  detailCard,
+  emailButton,
+  escapeHtml,
+  firstName,
+  renderEmail,
+} from './email-layout';
 
 export interface RsvpInviteTemplateInput {
   guestName: string;
   eventName: string;
   when: string;
+  venueName: string | null;
   location: string | null;
   rsvpUrl: string;
 }
 
 export function rsvpInviteTemplate(input: RsvpInviteTemplateInput): string {
-  const place = input.location
-    ? `<p style="margin:12px 0 0;">Lugar: <strong>${escapeHtml(input.location)}</strong></p>`
-    : '';
+  const name = firstName(input.guestName);
+  const place = [input.venueName?.trim(), input.location?.trim()]
+    .filter(Boolean)
+    .join(' · ');
+  const rows = [
+    { label: 'Cuándo', value: input.when },
+    { label: 'Dónde', value: place || 'Te lo confirmamos pronto' },
+  ];
 
   const body = `
-    <p style="margin:0;">Hola ${escapeHtml(input.guestName)}.</p>
-    <p style="margin:16px 0 0;">Te invitaron a <strong>${escapeHtml(input.eventName)}</strong>.</p>
-    <p style="margin:12px 0 0;">Fecha: <strong>${escapeHtml(input.when)}</strong></p>
-    ${place}
-    <p style="margin:16px 0 0;">Confirma o declina con el botón. El enlace es solo tuyo.</p>
-    ${emailButton(input.rsvpUrl, 'Responder invitación')}
+    <p style="margin:0;text-align:center;font-size:17px;line-height:1.55;">
+      Hola <strong>${escapeHtml(name)}</strong>,
+    </p>
+    <p style="margin:14px 0 0;text-align:center;font-size:17px;line-height:1.55;">
+      Hay un lugar guardado con tu nombre en
+      <strong>${escapeHtml(input.eventName)}</strong>.
+      Nos encantaría que fueras parte de ese día.
+    </p>
+    ${detailCard(rows)}
+    <p style="margin:22px 0 0;text-align:center;font-size:15px;line-height:1.5;color:#6b6b6b;">
+      Toca el botón, elige si vas (y con quién) y listo.
+      Tu enlace es personal: solo funciona para ti.
+    </p>
+    ${emailButton(input.rsvpUrl, 'Ver mi invitación')}
+    <p style="margin:8px 0 0;text-align:center;font-size:13px;color:#6b6b6b;">
+      ¿No puedes ir? También puedes avisarnos desde el mismo enlace.
+    </p>
   `;
 
-  return renderEmail(`Invitación a ${input.eventName}`, body);
+  return renderEmail({
+    preheader: `${name}, te esperan en ${input.eventName}. Confirma tu lugar en un toque.`,
+    eyebrow: 'Tu pase digital',
+    title: 'Te están esperando',
+    bodyHtml: body,
+    footerNote:
+      'InvitaQR · Este correo es una invitación personal. Si no la reconoces, ignóralo con tranquilidad.',
+  });
 }

@@ -9,6 +9,7 @@ import { envValidationSchema } from './config/env.validation';
 import { OwnerSeedService } from './database/owner-seed.service';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EventsModule } from './events/events.module';
+import { GeoModule } from './geo/geo.module';
 import { GuestsModule } from './guests/guests.module';
 import { HealthController } from './health/health.controller';
 import { RsvpModule } from './rsvp/rsvp.module';
@@ -40,6 +41,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     AuthModule,
     EventsModule,
+    GeoModule,
     GuestsModule,
     RsvpModule,
     ScannerModule,

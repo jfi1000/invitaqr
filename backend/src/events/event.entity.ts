@@ -26,6 +26,15 @@ export class Event {
   @Column({ type: 'varchar', length: 300, nullable: true })
   location: string | null;
 
+  @Column({ name: 'venue_name', type: 'varchar', length: 200, nullable: true })
+  venueName: string | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
+
   @Column({ name: 'starts_at', type: 'timestamptz' })
   startsAt: Date;
 

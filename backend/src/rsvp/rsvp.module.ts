@@ -5,11 +5,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from '../events/event.entity';
 import { Guest } from '../guests/guest.entity';
 import { Pass } from '../guests/pass.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { QR_JWT, RsvpService } from './rsvp.service';
 import { RsvpController } from './rsvp.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pass, Guest, Event])],
+  imports: [
+    TypeOrmModule.forFeature([Pass, Guest, Event]),
+    NotificationsModule,
+  ],
   controllers: [RsvpController],
   providers: [
     RsvpService,

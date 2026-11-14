@@ -24,6 +24,9 @@ export interface PlannerEvent {
   name: string
   description: string | null
   location: string | null
+  venueName: string | null
+  latitude: number | null
+  longitude: number | null
   startsAt: string
   endsAt: string
   capacity: number
@@ -66,6 +69,7 @@ export interface GuestView {
   tableNumber: number | null
   zone: string | null
   notes: string | null
+  inviteSentAt: string | null
   createdAt: string
   pass: PassView | null
 }
@@ -84,6 +88,36 @@ export interface PassQrView {
   rsvpStatus: string
 }
 
+export interface RsvpView {
+  pass: {
+    id: string
+    rsvpStatus: RsvpStatus
+    companionsConfirmed: number
+    rsvpAt: string | null
+    qrToken: string | null
+  }
+  guest: {
+    id: string
+    name: string
+    maxCompanions: number
+  }
+  event: {
+    id: string
+    name: string
+    description: string | null
+    location: string | null
+    venueName: string | null
+    latitude: number | null
+    longitude: number | null
+    startsAt: string
+    endsAt: string
+    capacity: number
+    rsvpDeadline: string | null
+    status: EventStatus
+    logo: string | null
+  }
+}
+
 export interface ImportResult {
   imported: number
   duplicates: number
@@ -94,6 +128,9 @@ export interface ImportResult {
 export interface CreateEventInput {
   name: string
   location?: string
+  venue_name?: string
+  latitude?: number | null
+  longitude?: number | null
   starts_at: string
   ends_at?: string
   capacity?: number
@@ -115,4 +152,5 @@ export interface CreateGuestInput {
   table_number?: number
   zone?: string
   notes?: string
+  send_invite?: boolean
 }

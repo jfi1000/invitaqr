@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { EventStatus } from '../events/event-status.enum';
 import { Guest } from '../guests/guest.entity';
 import { Pass } from '../guests/pass.entity';
 import { PassRsvpStatus } from '../guests/pass-rsvp-status.enum';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const QR_JWT = 'QR_JWT';
 
@@ -35,16 +37,22 @@ export interface RsvpView {
     name: string;
     description: string | null;
     location: string | null;
+    venueName: string | null;
+    latitude: number | null;
+    longitude: number | null;
     startsAt: Date;
     endsAt: Date;
     capacity: number;
     rsvpDeadline: Date | null;
     status: EventStatus;
+    logo: string | null;
   };
 }
 
 @Injectable()
 export class RsvpService {
+  private readonly logger = new Logger(RsvpService.name);
+
   constructor(
     @InjectRepository(Pass)
     private readonly passes: Repository<Pass>,
@@ -55,6 +63,7 @@ export class RsvpService {
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
     @Inject(QR_JWT) private readonly qrJwt: JwtService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getPass(rsvpToken: string): Promise<RsvpView> {
@@ -69,7 +78,7 @@ export class RsvpService {
 
   async confirm(rsvpToken: string, companions: number): Promise<RsvpView> {
     const partySize = companions ?? 0;
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const { pass, guest, event } = await this.lockRsvp(manager, rsvpToken);
       this.assertOpen(event);
       if (
@@ -100,12 +109,26 @@ export class RsvpService {
         pass.qrToken = null;
       }
       const saved = await manager.getRepository(Pass).save(pass);
-      return this.toView(saved, guest, event);
+      return { pass: saved, guest, event, view: this.toView(saved, guest, event) };
     });
+
+    if (result.pass.rsvpStatus === PassRsvpStatus.CONFIRMED) {
+      this.fireAndForget(
+        this.notifications.sendConfirmation(result.guest, result.pass, result.event),
+        `confirmación a ${result.guest.email ?? result.guest.name}`,
+      );
+    } else if (result.pass.rsvpStatus === PassRsvpStatus.WAITLIST) {
+      this.fireAndForget(
+        this.notifications.sendWaitlist(result.guest, result.event),
+        `lista de espera a ${result.guest.email ?? result.guest.name}`,
+      );
+    }
+
+    return result.view;
   }
 
   async decline(rsvpToken: string): Promise<RsvpView> {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const { pass, guest, event } = await this.lockRsvp(manager, rsvpToken);
       this.assertOpen(event);
       if (pass.rsvpStatus === PassRsvpStatus.DECLINED) {
@@ -119,17 +142,41 @@ export class RsvpService {
       pass.rsvpAt = new Date();
       pass.qrToken = null;
       const saved = await manager.getRepository(Pass).save(pass);
-      if (wasConfirmed) {
-        await this.promoteFromWaitlist(event.id, manager);
-      }
-      return this.toView(saved, guest, event);
+      const promoted = wasConfirmed
+        ? await this.promoteFromWaitlist(event.id, manager)
+        : null;
+      return {
+        pass: saved,
+        guest,
+        event,
+        promoted,
+        view: this.toView(saved, guest, event),
+      };
     });
+
+    this.fireAndForget(
+      this.notifications.sendDeclined(result.guest, result.event),
+      `rechazo a ${result.guest.email ?? result.guest.name}`,
+    );
+
+    if (result.promoted) {
+      this.fireAndForget(
+        this.notifications.sendConfirmation(
+          result.promoted.guest,
+          result.promoted.pass,
+          result.promoted.event,
+        ),
+        `promoción waitlist a ${result.promoted.guest.email ?? result.promoted.guest.name}`,
+      );
+    }
+
+    return result.view;
   }
 
   private async promoteFromWaitlist(
     eventId: string,
     manager: EntityManager,
-  ): Promise<void> {
+  ): Promise<{ guest: Guest; pass: Pass; event: Event } | null> {
     const next = await manager
       .getRepository(Pass)
       .createQueryBuilder('pass')
@@ -142,25 +189,39 @@ export class RsvpService {
       .addOrderBy('pass.createdAt', 'ASC')
       .getOne();
     if (!next) {
-      return;
+      return null;
     }
 
     const event = await manager.getRepository(Event).findOne({
       where: { id: eventId },
     });
     if (!event) {
-      return;
+      return null;
     }
     const occupied = await this.countOccupiedSeats(manager, eventId);
     const seats = 1 + next.companionsConfirmed;
     if (occupied + seats > event.capacity) {
-      return;
+      return null;
     }
 
     next.rsvpStatus = PassRsvpStatus.CONFIRMED;
     next.rsvpAt = new Date();
     next.qrToken = await this.signQr(next);
-    await manager.getRepository(Pass).save(next);
+    const saved = await manager.getRepository(Pass).save(next);
+    const guest = await manager.getRepository(Guest).findOne({
+      where: { id: saved.guestId },
+    });
+    if (!guest) {
+      return null;
+    }
+    return { guest, pass: saved, event };
+  }
+
+  private fireAndForget(task: Promise<void>, label: string): void {
+    void task.catch((error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Notificación fallida (${label}): ${detail}`);
+    });
   }
 
   private async lockRsvp(
@@ -303,11 +364,15 @@ export class RsvpService {
         name: event.name,
         description: event.description,
         location: event.location,
+        venueName: event.venueName ?? null,
+        latitude: event.latitude ?? null,
+        longitude: event.longitude ?? null,
         startsAt: event.startsAt,
         endsAt: event.endsAt,
         capacity: event.capacity,
         rsvpDeadline: event.rsvpDeadline,
         status: event.status,
+        logo: event.logo ?? null,
       },
     };
   }

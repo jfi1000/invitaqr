@@ -51,6 +51,9 @@ export class EventsService {
       name: dto.name.trim(),
       description: this.emptyToNull(dto.description),
       location: this.emptyToNull(dto.location),
+      venueName: this.emptyToNull(dto.venue_name),
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
       startsAt,
       endsAt,
       capacity,
@@ -132,6 +135,15 @@ export class EventsService {
     }
     if (dto.location !== undefined) {
       event.location = this.emptyToNull(dto.location);
+    }
+    if (dto.venue_name !== undefined) {
+      event.venueName = this.emptyToNull(dto.venue_name);
+    }
+    if (dto.latitude !== undefined) {
+      event.latitude = dto.latitude ?? null;
+    }
+    if (dto.longitude !== undefined) {
+      event.longitude = dto.longitude ?? null;
     }
     if (dto.rsvp_deadline !== undefined) {
       event.rsvpDeadline = dto.rsvp_deadline
