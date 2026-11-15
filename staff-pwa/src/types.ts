@@ -13,6 +13,16 @@ export interface Session {
   user: AuthUser
 }
 
+export interface StaffEventSummary {
+  id: string
+  name: string
+  date: string
+  location: string | null
+  venueName: string | null
+  status: string
+  logo: string | null
+}
+
 export type ScanResult =
   | 'OK'
   | 'ALREADY_USED'
@@ -27,6 +37,8 @@ export interface ScanResponse {
   result: ScanResult
   guestName?: string
   companions?: number
+  guestCount?: number
+  tableNumber?: number | null
 }
 
 export type ResultTone = 'ok' | 'denied' | 'warning'

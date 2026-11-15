@@ -21,4 +21,5 @@ export const envValidationSchema = Joi.object({
   OWNER_PASSWORD: Joi.string().min(8).allow('').optional(),
   APP_URL: Joi.string().allow('').optional(),
   API_URL: Joi.string().allow('').optional(),
+  STAFF_PWA_URL: Joi.string().allow('').optional(),
 });

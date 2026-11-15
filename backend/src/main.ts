@@ -19,11 +19,14 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use(requestLogger);
   const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
+    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
     : [
         'http://localhost:8081',
         'http://localhost:8082',
         'http://localhost:8083',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8081',
         /\.ngrok-free\.app$/,
         /\.exp\.direct$/,
       ];

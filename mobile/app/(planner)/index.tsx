@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useRef, useState } from 'react'
 import { FlatList, Modal, ScrollView, Text, View } from 'react-native'
@@ -23,7 +22,6 @@ import { openEvent } from '../../lib/navigation'
 
 export default function DashboardScreen() {
   const router = useRouter()
-  const navigation = useNavigation()
   const createdIdRef = useRef<string | null>(null)
   const events = useEvents()
   const createEvent = useCreateEvent()
@@ -122,7 +120,7 @@ export default function DashboardScreen() {
         renderItem={({ item }) => (
           <EventCard
             event={item}
-            onPress={() => openEvent(navigation, router, item.id)}
+            onPress={() => openEvent(router, item.id)}
           />
         )}
       />
@@ -185,7 +183,7 @@ export default function DashboardScreen() {
         onContinue={() => {
           const id = createdIdRef.current ?? createdId
           if (id) {
-            openEvent(navigation, router, id)
+            openEvent(router, id)
           }
         }}
         onExited={() => {

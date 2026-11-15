@@ -20,7 +20,7 @@ const DETAIL: Record<ScanResult, string> = {
   EXPIRED: 'El código está vencido',
   WRONG_EVENT: 'El pase es de otro evento',
   EVENT_INACTIVE: 'El evento no está activo',
-  OUT_OF_SCHEDULE: 'Fuera del horario del evento',
+  OUT_OF_SCHEDULE: 'Fuera del horario (el escaneo abre 1 h antes del inicio)',
   NOT_CONFIRMED: 'La asistencia no está confirmada',
 }
 
@@ -39,25 +39,57 @@ function headline(result: ScanResult, guestName?: string): string {
   return '✗ Acceso denegado'
 }
 
+function okDetails(input: {
+  tableNumber?: number | null
+  guestCount?: number
+  companions?: number
+}): string[] {
+  const lines: string[] = []
+  if (input.tableNumber != null && input.tableNumber > 0) {
+    lines.push(`Mesa ${input.tableNumber}`)
+  }
+
+  const total =
+    input.guestCount ??
+    (input.companions !== undefined ? 1 + input.companions : undefined)
+  if (total !== undefined && total > 0) {
+    lines.push(`${total} invitado${total === 1 ? '' : 's'}`)
+  } else if (input.companions && input.companions > 0) {
+    lines.push(
+      `${input.companions} acompañante${input.companions === 1 ? '' : 's'}`,
+    )
+  }
+  return lines
+}
+
 interface ResultBadgeProps {
   result: ScanResult
   guestName?: string
   companions?: number
+  guestCount?: number
+  tableNumber?: number | null
 }
 
-export function ResultBadge({ result, guestName, companions }: ResultBadgeProps) {
+export function ResultBadge({
+  result,
+  guestName,
+  companions,
+  guestCount,
+  tableNumber,
+}: ResultBadgeProps) {
   const tone = toneFor(result)
   const detail = DETAIL[result]
-  const extra =
-    result === 'OK' && companions && companions > 0
-      ? `${companions} acompañante${companions === 1 ? '' : 's'}`
-      : ''
+  const extras = result === 'OK' ? okDetails({ tableNumber, guestCount, companions }) : []
 
   return (
     <section className={`badge badge-${tone}`} role="status" aria-live="assertive">
       <p className="badge-title">{headline(result, guestName)}</p>
       {detail ? <p className="badge-detail">{detail}</p> : null}
-      {extra ? <p className="badge-detail">{extra}</p> : null}
+      {extras.map((line) => (
+        <p key={line} className="badge-detail">
+          {line}
+        </p>
+      ))}
     </section>
   )
 }

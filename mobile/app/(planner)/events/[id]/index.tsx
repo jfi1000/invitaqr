@@ -18,6 +18,7 @@ import { eventLogo } from '../../../../lib/brand'
 import { fromIsoLocal, formatWhen, toIso } from '../../../../lib/format'
 import { backToEventList } from '../../../../lib/navigation'
 import { queryKeys } from '../../../../lib/query'
+import { SCAN_EARLY_MINUTES, scanOpensAt } from '../../../../lib/scan-window'
 import { mapsUrl } from '../../../../lib/venue'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -223,6 +224,23 @@ export default function EventDetailScreen() {
             ) : null}
           </View>
 
+          <View className="mt-4 rounded-[28px] border border-line bg-mist/70 px-5 py-4">
+            <Text
+              className="text-base text-inkwell"
+              style={{ fontFamily: 'Inter_600SemiBold' }}
+            >
+              Escaneo en puerta
+            </Text>
+            <Text
+              className="mt-2 text-sm text-mute"
+              style={{ fontFamily: 'Inter_500Medium' }}
+            >
+              Se habilita {SCAN_EARLY_MINUTES} min antes del inicio (
+              {formatWhen(scanOpensAt(event.startsAt).toISOString())}) y cierra al
+              terminar el evento ({formatWhen(event.endsAt)}).
+            </Text>
+          </View>
+
           {event.status === 'DRAFT' ? (
             <AppButton
               className="mt-5"
@@ -244,6 +262,12 @@ export default function EventDetailScreen() {
             className="mt-3"
             label="Ver pases"
             onPress={() => router.push(`/(planner)/events/${id}/passes`)}
+          />
+          <AppButton
+            className="mt-3"
+            label="Staff"
+            variant="secondary"
+            onPress={() => router.push(`/(planner)/events/${id}/staff`)}
           />
           <AppButton className="mt-3" label="Editar evento" variant="secondary" onPress={openEdit} />
 

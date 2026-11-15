@@ -17,6 +17,22 @@ export type EventStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'CANCELLED'
 export type EventPlan = 'FREE' | 'BASIC' | 'PRO'
 export type EventType = 'social' | 'corporate' | 'educational' | 'entertainment'
 export type RsvpStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'WAITLIST'
+export type StaffStatus = 'active' | 'invited'
+
+export interface EventStaffMember {
+  staffId: string
+  name: string
+  email: string
+  status: StaffStatus
+  assignedAt: string
+}
+
+export interface InviteStaffResult {
+  staffId: string
+  name: string
+  email: string
+  status: 'invited' | 'assigned'
+}
 
 export interface PlannerEvent {
   id: string

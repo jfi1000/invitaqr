@@ -5,5 +5,7 @@ coverage/
 *.log
 .DS_Store
 Thumbs.db
+.tools/
+mobile/expo-lan-qr.png
 backend/storage/
 backend/tmp-migrate.js

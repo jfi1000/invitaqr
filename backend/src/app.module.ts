@@ -14,6 +14,7 @@ import { GuestsModule } from './guests/guests.module';
 import { HealthController } from './health/health.controller';
 import { RsvpModule } from './rsvp/rsvp.module';
 import { ScannerModule } from './scanner/scanner.module';
+import { StaffModule } from './staff/staff.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -45,6 +46,7 @@ import { UsersModule } from './users/users.module';
     GuestsModule,
     RsvpModule,
     ScannerModule,
+    StaffModule,
     BillingModule,
     DashboardModule,
   ],

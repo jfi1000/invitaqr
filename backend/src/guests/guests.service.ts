@@ -410,16 +410,18 @@ export class GuestsService {
 
       const existing = await manager.getRepository(Guest).find({
         where: { eventId },
-        select: ['id', 'phone', 'email'],
+        select: ['id', 'name', 'phone', 'email'],
       });
-      const emails = new Set<string>();
-      const phones = new Set<string>();
+      // email/phone normalizados → nombre del invitado ya registrado
+      const emails = new Map<string, string>();
+      const phones = new Map<string, string>();
       for (const guest of existing) {
         if (guest.email) {
-          emails.add(guest.email.toLowerCase());
+          emails.set(guest.email.toLowerCase(), guest.name);
         }
-        if (guest.phone) {
-          phones.add(guest.phone);
+        const phoneDigits = guest.phone?.replace(/\D/g, '') ?? '';
+        if (phoneDigits) {
+          phones.set(phoneDigits, guest.name);
         }
       }
 
@@ -441,25 +443,25 @@ export class GuestsService {
           continue;
         }
         const guest = normalized.guest;
-        const isDuplicate =
-          (guest.emailKey !== null && emails.has(guest.emailKey)) ||
-          (guest.phoneKey !== null && phones.has(guest.phoneKey));
-        if (isDuplicate) {
+        const emailOwner =
+          guest.emailKey !== null ? emails.get(guest.emailKey) : undefined;
+        const phoneOwner =
+          guest.phoneKey !== null ? phones.get(guest.phoneKey) : undefined;
+        if (emailOwner !== undefined || phoneOwner !== undefined) {
           if (strictDuplicates) {
             throw new ConflictException({
               error: 'DUPLICATE_GUEST',
-              message:
-                'Ya existe un invitado con ese teléfono o correo en el evento',
+              message: this.duplicateMessage(emailOwner, phoneOwner),
             });
           }
           skipped += 1;
           continue;
         }
         if (guest.emailKey) {
-          emails.add(guest.emailKey);
+          emails.set(guest.emailKey, guest.name);
         }
         if (guest.phoneKey) {
-          phones.add(guest.phoneKey);
+          phones.set(guest.phoneKey, guest.name);
         }
         ready.push(guest);
       }
@@ -741,6 +743,25 @@ export class GuestsService {
       phones.add(guest.phoneKey);
     }
     return false;
+  }
+
+  private duplicateMessage(
+    emailOwner: string | undefined,
+    phoneOwner: string | undefined,
+  ): string {
+    if (emailOwner && phoneOwner) {
+      if (emailOwner === phoneOwner) {
+        return `Ya existe un invitado con ese correo o teléfono: ${emailOwner}`;
+      }
+      return `Ese correo ya lo tiene ${emailOwner} y ese teléfono ya lo tiene ${phoneOwner}`;
+    }
+    if (emailOwner) {
+      return `Ya existe un invitado con ese correo: ${emailOwner}`;
+    }
+    if (phoneOwner) {
+      return `Ya existe un invitado con ese teléfono: ${phoneOwner}`;
+    }
+    return 'Ya existe un invitado con ese teléfono o correo en el evento';
   }
 
   private toDto(guest: NormalizedGuest): CreateGuestDto {

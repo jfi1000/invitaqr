@@ -28,6 +28,6 @@ export class ScannerController {
         message: 'Solo el personal de acceso puede escanear',
       });
     }
-    return this.scannerService.validate(dto, user.id);
+    return this.scannerService.validate(dto, user.id, user.role);
   }
 }

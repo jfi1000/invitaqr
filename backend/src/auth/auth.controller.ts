@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Get,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -12,6 +14,8 @@ import { Request, Response } from 'express';
 import { REFRESH_COOKIE } from '../common/constants';
 import { Public } from '../common/decorators/public.decorator';
 import { ResponseMessage } from '../common/decorators/response-message.decorator';
+import { SetStaffPasswordDto } from '../staff/dto/set-staff-password.dto';
+import { StaffService } from '../staff/staff.service';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -22,6 +26,7 @@ import { RegisterDto } from './dto/register.dto';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly staffService: StaffService,
     private readonly config: ConfigService,
   ) {}
 
@@ -67,6 +72,19 @@ export class AuthController {
     const session = await this.authService.refresh(refreshToken);
     this.setRefreshCookie(res, session.refreshToken);
     return session;
+  }
+
+  @Public()
+  @Get('staff/invite-status')
+  inviteStatus(@Query('token') token?: string) {
+    return this.staffService.getInviteStatus(token ?? '');
+  }
+
+  @Public()
+  @Post('staff/set-password')
+  @ResponseMessage('Contraseña establecida')
+  setStaffPassword(@Body() dto: SetStaffPasswordDto) {
+    return this.staffService.setPassword(dto.inviteToken, dto.password);
   }
 
   @Public()

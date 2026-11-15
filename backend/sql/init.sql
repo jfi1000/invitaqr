@@ -101,6 +101,23 @@ CREATE TABLE scan_logs (
 );
 
 -- ─────────────────────────────────────────────
+-- INVITACIONES STAFF + ASIGNACIÓN A EVENTOS
+-- ─────────────────────────────────────────────
+CREATE TABLE staff_invites (
+  staff_id             UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  invite_token         UUID NOT NULL UNIQUE,
+  invite_token_expiry  TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE event_staff (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  staff_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (event_id, staff_id)
+);
+
+-- ─────────────────────────────────────────────
 -- PAGOS (Stripe)
 -- ─────────────────────────────────────────────
 CREATE TABLE payments (
@@ -127,4 +144,6 @@ CREATE INDEX idx_passes_event        ON passes(event_id);
 CREATE INDEX idx_passes_rsvp_token   ON passes(rsvp_token);
 CREATE INDEX idx_scan_logs_event     ON scan_logs(event_id);
 CREATE INDEX idx_scan_logs_pass      ON scan_logs(pass_id);
+CREATE INDEX idx_event_staff_event   ON event_staff(event_id);
+CREATE INDEX idx_event_staff_staff   ON event_staff(staff_id);
 CREATE INDEX idx_payments_event      ON payments(event_id);

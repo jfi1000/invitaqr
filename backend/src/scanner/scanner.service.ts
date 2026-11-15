@@ -8,7 +8,10 @@ import { Guest } from '../guests/guest.entity';
 import { Pass } from '../guests/pass.entity';
 import { PassAccessStatus } from '../guests/pass-access-status.enum';
 import { PassRsvpStatus } from '../guests/pass-rsvp-status.enum';
+import { StaffService } from '../staff/staff.service';
+import { UserRole } from '../users/user-role.enum';
 import { ScanQrDto } from './dto/scan-qr.dto';
+import { isWithinScanWindow } from './scan-window';
 import { ScanLog } from './scan-log.entity';
 import { ScanResult } from './scan-result.enum';
 
@@ -29,12 +32,15 @@ interface CheckedScan {
   passId: string | null;
   guestName?: string;
   companions?: number;
+  tableNumber?: number | null;
 }
 
 export interface ScanValidationResult {
   result: ScanResult;
   guestName?: string;
   companions?: number;
+  tableNumber?: number | null;
+  guestCount?: number;
 }
 
 @Injectable()
@@ -42,13 +48,18 @@ export class ScannerService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
+    private readonly staffService: StaffService,
     @Inject(QR_JWT) private readonly qrJwt: JwtService,
   ) {}
 
   async validate(
     dto: ScanQrDto,
     scannerId: string,
+    role: UserRole,
   ): Promise<ScanValidationResult> {
+    if (role === UserRole.STAFF) {
+      await this.staffService.assertAssignedToEvent(dto.eventId, scannerId);
+    }
     try {
       return await this.dataSource.transaction((manager) =>
         this.evaluate(manager, dto, scannerId),
@@ -113,6 +124,7 @@ export class ScannerService {
     };
     if (guest) {
       known.guestName = guest.name;
+      known.tableNumber = guest.tableNumber;
     }
 
     if (pass.eventId !== dto.eventId) {
@@ -122,12 +134,14 @@ export class ScannerService {
     const event = await manager
       .getRepository(Event)
       .findOne({ where: { id: pass.eventId } });
+    if (event && !event.hasTables) {
+      known.tableNumber = null;
+    }
     if (!event || event.status !== EventStatus.ACTIVE) {
       return { ...known, result: ScanResult.EVENT_INACTIVE };
     }
 
-    const now = Date.now();
-    if (event.startsAt.getTime() > now || event.endsAt.getTime() < now) {
+    if (!isWithinScanWindow(Date.now(), event.startsAt, event.endsAt)) {
       return { ...known, result: ScanResult.OUT_OF_SCHEDULE };
     }
 
@@ -206,6 +220,10 @@ export class ScannerService {
     }
     if (checked.companions !== undefined) {
       response.companions = checked.companions;
+      response.guestCount = 1 + checked.companions;
+    }
+    if (checked.tableNumber !== undefined && checked.tableNumber !== null) {
+      response.tableNumber = checked.tableNumber;
     }
     return response;
   }

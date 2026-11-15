@@ -10,6 +10,8 @@ import { rsvpConfirmedTemplate } from './templates/rsvp-confirmed.template';
 import { rsvpDeclinedTemplate } from './templates/rsvp-declined.template';
 import { rsvpInviteTemplate } from './templates/rsvp-invite.template';
 import { rsvpReminderTemplate } from './templates/rsvp-reminder.template';
+import { staffAccessTemplate } from './templates/staff-access.template';
+import { staffInviteTemplate } from './templates/staff-invite.template';
 import { waitlistTemplate } from './templates/waitlist.template';
 
 @Injectable()
@@ -130,6 +132,64 @@ export class NotificationsService {
         `Fecha: ${when}`,
         '',
         'Si se libera un lugar, te escribimos de inmediato.',
+        '',
+        '— InvitaQR',
+      ].join('\n'),
+    );
+  }
+
+  async sendStaffInvite(params: {
+    staffName: string;
+    staffEmail: string;
+    eventName: string;
+    inviteToken: string;
+  }): Promise<void> {
+    const staffPwaUrl = this.staffPwaBase();
+    const activateUrl = `${staffPwaUrl}/set-password?token=${params.inviteToken}`;
+    const loginUrl = staffPwaUrl;
+    await this.sendEmail(
+      params.staffEmail,
+      `Activa tu acceso para ${params.eventName}`,
+      staffInviteTemplate({
+        staffName: params.staffName,
+        eventName: params.eventName,
+        activateUrl,
+        loginUrl,
+      }),
+      [
+        `Hola ${params.staffName},`,
+        '',
+        `Fuiste invitado como personal de acceso en ${params.eventName}.`,
+        '',
+        `Activa tu cuenta aquí: ${activateUrl}`,
+        `Cuando ya la actives, entra a escanear: ${loginUrl}`,
+        '',
+        'Este enlace expira en 48 horas.',
+        '',
+        '— InvitaQR',
+      ].join('\n'),
+    );
+  }
+
+  async sendStaffAccess(params: {
+    staffName: string;
+    staffEmail: string;
+    eventName: string;
+  }): Promise<void> {
+    const loginUrl = this.staffPwaBase();
+    await this.sendEmail(
+      params.staffEmail,
+      `Entra a escanear ${params.eventName}`,
+      staffAccessTemplate({
+        staffName: params.staffName,
+        eventName: params.eventName,
+        loginUrl,
+      }),
+      [
+        `Hola ${params.staffName},`,
+        '',
+        `Tu acceso para ${params.eventName} está listo.`,
+        `Entra a escanear aquí: ${loginUrl}`,
         '',
         '— InvitaQR',
       ].join('\n'),
@@ -316,6 +376,12 @@ export class NotificationsService {
       this.config.get<string>('APP_URL') || 'http://localhost:3000'
     ).replace(/\/$/, '');
     return `${appUrl}/rsvp/${rsvpToken}`;
+  }
+
+  private staffPwaBase(): string {
+    return (
+      this.config.get<string>('STAFF_PWA_URL') || 'http://localhost:5173'
+    ).replace(/\/$/, '');
   }
 
   private formatWhen(date: Date): string {

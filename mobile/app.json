@@ -6,11 +6,6 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#f6f1e8"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.xalapasoft.invitaqr"
@@ -21,7 +16,17 @@
         "backgroundColor": "#f6f1e8"
       }
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f6f1e8",
+          "resizeMode": "contain"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": false
     },

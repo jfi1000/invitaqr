@@ -4,8 +4,10 @@ import type {
   AuthUser,
   CreateEventInput,
   CreateGuestInput,
+  EventStaffMember,
   GuestView,
   ImportResult,
+  InviteStaffResult,
   PlannerEvent,
   RsvpView,
   Session,
@@ -172,6 +174,34 @@ export async function sendGuestInvite(
 ): Promise<GuestView> {
   const response = await api.post<{ data: GuestView }>(
     `/events/${eventId}/guests/${guestId}/send-invite`,
+  )
+  return unwrap(response.data)
+}
+
+export async function getEventStaff(eventId: string): Promise<EventStaffMember[]> {
+  const response = await api.get<{ data: EventStaffMember[] }>(
+    `/events/${eventId}/staff`,
+  )
+  return unwrap(response.data)
+}
+
+export async function inviteEventStaff(
+  eventId: string,
+  input: { name: string; email: string },
+): Promise<InviteStaffResult> {
+  const response = await api.post<{ data: InviteStaffResult }>(
+    `/events/${eventId}/staff/invite`,
+    input,
+  )
+  return unwrap(response.data)
+}
+
+export async function removeEventStaff(
+  eventId: string,
+  staffId: string,
+): Promise<{ removed: true }> {
+  const response = await api.delete<{ data: { removed: true } }>(
+    `/events/${eventId}/staff/${staffId}`,
   )
   return unwrap(response.data)
 }

@@ -1,30 +1,52 @@
 import { Html5Qrcode } from 'html5-qrcode'
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, scanQr } from '../api'
-import type { ScanResponse } from '../types'
+import { ApiError, getStaffEvent, scanQr } from '../api'
+import { eventLogo } from '../brand'
+import type { ScanResponse, StaffEventSummary } from '../types'
 import { ResultBadge } from './ResultBadge'
 
 const READER_ID = 'qr-reader'
 const COOLDOWN_MS = 2800
 
 interface ScannerProps {
-  accessToken: string
   eventId: string
+  event?: StaffEventSummary | null
   onLogout: () => void
   onSessionExpired: () => void
 }
 
 export function Scanner({
-  accessToken,
   eventId,
+  event: initialEvent,
   onLogout,
   onSessionExpired,
 }: ScannerProps) {
+  const [event, setEvent] = useState<StaffEventSummary | null>(initialEvent ?? null)
   const [result, setResult] = useState<ScanResponse | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const expiredRef = useRef(onSessionExpired)
   expiredRef.current = onSessionExpired
+
+  useEffect(() => {
+    let cancelled = false
+    if (initialEvent?.id === eventId && initialEvent.name) {
+      setEvent(initialEvent)
+      return
+    }
+    void getStaffEvent(eventId)
+      .then((summary) => {
+        if (!cancelled) setEvent(summary)
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled && caught instanceof ApiError && caught.status === 401) {
+          expiredRef.current()
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [eventId, initialEvent])
 
   useEffect(() => {
     const reader = new Html5Qrcode(READER_ID)
@@ -45,7 +67,7 @@ export function Scanner({
           if (!active || busy) return
           busy = true
           setScanning(true)
-          void scanQr(accessToken, decodedText, eventId)
+          void scanQr(decodedText, eventId)
             .then((scan) => {
               if (active) setResult(scan)
             })
@@ -85,14 +107,20 @@ export function Scanner({
         void reader.stop().catch(() => undefined)
       }
     }
-  }, [accessToken, eventId])
+  }, [eventId])
+
+  const logoSrc = eventLogo(event?.logo)
+  const eventName = event?.name?.trim() || 'Evento'
 
   return (
     <main className="screen scanner-screen">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Escaneando</p>
-          <p className="event-id">{eventId}</p>
+        <div className="scanner-event">
+          <img className="scanner-event-logo" src={logoSrc} alt="" />
+          <div>
+            <p className="eyebrow">Escaneando</p>
+            <p className="scanner-event-name">{eventName}</p>
+          </div>
         </div>
         <button type="button" className="ghost" onClick={onLogout}>
           Salir
@@ -110,10 +138,16 @@ export function Scanner({
           result={result.result}
           guestName={result.guestName}
           companions={result.companions}
+          guestCount={result.guestCount}
+          tableNumber={result.tableNumber}
         />
       ) : (
         <section className="badge badge-idle" role="status">
-          <p className="badge-title">{scanning ? 'Validando…' : 'Apunta al código QR'}</p>
+          <img className="badge-event-logo" src={logoSrc} alt="" />
+          <p className="badge-event-name">{eventName}</p>
+          <p className="badge-title">
+            {scanning ? 'Validando…' : 'Apunta al código QR'}
+          </p>
         </section>
       )}
     </main>

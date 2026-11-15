@@ -5,12 +5,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from '../events/event.entity';
 import { Guest } from '../guests/guest.entity';
 import { Pass } from '../guests/pass.entity';
+import { StaffModule } from '../staff/staff.module';
 import { ScanLog } from './scan-log.entity';
 import { QR_JWT, ScannerService } from './scanner.service';
 import { ScannerController } from './scanner.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ScanLog, Pass, Guest, Event])],
+  imports: [
+    TypeOrmModule.forFeature([ScanLog, Pass, Guest, Event]),
+    StaffModule,
+  ],
   controllers: [ScannerController],
   providers: [
     ScannerService,
