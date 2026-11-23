@@ -1,8 +1,10 @@
+import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class SetStaffPasswordDto {
   @ApiProperty({ format: 'uuid' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsUUID()
   inviteToken: string;
 

@@ -6,6 +6,15 @@ import { BrandMark } from './BrandMark'
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function formatEventDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Fecha por confirmar'
+  return date.toLocaleString('es-MX', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 interface LoginProps {
   notice?: string
   onSuccess: (session: Session, event: StaffEventSummary | string) => void
@@ -126,10 +135,7 @@ export function Login({ notice, onSuccess }: LoginProps) {
             >
               <strong>{item.name}</strong>
               <span>
-                {new Date(item.date).toLocaleString('es-MX', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
+                {formatEventDate(item.date)}
               </span>
               <span>{item.venueName || item.location || 'Sin lugar'}</span>
             </button>
@@ -176,6 +182,7 @@ export function Login({ notice, onSuccess }: LoginProps) {
             autoComplete="current-password"
             value={password}
             minLength={8}
+            maxLength={72}
             onChange={(event) => setPassword(event.target.value)}
             required
           />

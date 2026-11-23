@@ -8,6 +8,7 @@ interface SetPasswordProps {
 }
 
 export function SetPassword({ token, onDone }: SetPasswordProps) {
+  const inviteToken = useMemo(() => token?.trim() || '', [token])
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -16,20 +17,20 @@ export function SetPassword({ token, onDone }: SetPasswordProps) {
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
 
-  const invalidToken = useMemo(() => !token || token.length < 10, [token])
+  const invalidToken = inviteToken.length < 10
 
   useEffect(() => {
     let cancelled = false
 
     async function check() {
-      if (invalidToken || !token) {
+      if (invalidToken) {
         onDoneRef.current(
           'Este enlace ya no es válido. Entra con tu correo y contraseña.',
         )
         return
       }
       try {
-        const status = await getStaffInviteStatus(token)
+        const status = await getStaffInviteStatus(inviteToken)
         if (cancelled) return
         if (status.status === 'valid') {
           setChecking(false)
@@ -53,17 +54,21 @@ export function SetPassword({ token, onDone }: SetPasswordProps) {
     return () => {
       cancelled = true
     }
-  }, [invalidToken, token])
+  }, [invalidToken, inviteToken])
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
-    if (invalidToken || !token) {
-      onDone('Este enlace ya se usó. Entra con tu correo y contraseña para escanear.')
+    if (invalidToken) {
+      onDone('Este enlace ya no es válido. Entra con tu correo y contraseña.')
       return
     }
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres')
+      return
+    }
+    if (password.length > 72) {
+      setError('La contraseña no puede pasar de 72 caracteres')
       return
     }
     if (password !== confirm) {
@@ -73,15 +78,17 @@ export function SetPassword({ token, onDone }: SetPasswordProps) {
 
     setBusy(true)
     try {
-      await setStaffPassword(token, password)
+      await setStaffPassword(inviteToken, password)
       onDone('Contraseña lista. Entra para escanear. También te enviamos el enlace por correo.')
     } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 400) {
+      if (caught instanceof ApiError && caught.code === 'INVITE_EXPIRED') {
         onDone(
-          caught.message.includes('expir')
-            ? 'El enlace expiró. Pide una nueva invitación o entra si ya activaste tu cuenta.'
-            : 'Este enlace ya se usó. Entra con tu correo y contraseña para escanear.',
+          'El enlace expiró. Pide una nueva invitación o entra si ya activaste tu cuenta.',
         )
+        return
+      }
+      if (caught instanceof ApiError && caught.code === 'INVALID_INVITE') {
+        onDone('Este enlace ya se usó. Entra con tu correo y contraseña para escanear.')
         return
       }
       setError(
@@ -119,6 +126,7 @@ export function SetPassword({ token, onDone }: SetPasswordProps) {
             autoComplete="new-password"
             value={password}
             minLength={8}
+            maxLength={72}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
@@ -130,6 +138,7 @@ export function SetPassword({ token, onDone }: SetPasswordProps) {
             autoComplete="new-password"
             value={confirm}
             minLength={8}
+            maxLength={72}
             onChange={(event) => setConfirm(event.target.value)}
             required
           />

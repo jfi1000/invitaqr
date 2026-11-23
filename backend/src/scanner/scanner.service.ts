@@ -60,14 +60,9 @@ export class ScannerService {
     if (role === UserRole.STAFF) {
       await this.staffService.assertAssignedToEvent(dto.eventId, scannerId);
     }
-    try {
-      return await this.dataSource.transaction((manager) =>
-        this.evaluate(manager, dto, scannerId),
-      );
-    } catch {
-      await this.recordInvalid(dto, scannerId);
-      return { result: ScanResult.INVALID_TOKEN };
-    }
+    return this.dataSource.transaction((manager) =>
+      this.evaluate(manager, dto, scannerId),
+    );
   }
 
   private async evaluate(
@@ -196,21 +191,6 @@ export class ScannerService {
       return { payload: verified, expired: true };
     }
     return { payload: verified };
-  }
-
-  private async recordInvalid(dto: ScanQrDto, scannerId: string): Promise<void> {
-    try {
-      await this.dataSource.getRepository(ScanLog).insert({
-        passId: null,
-        eventId: dto.eventId,
-        scannerId,
-        rawToken: dto.qrToken,
-        result: ScanResult.INVALID_TOKEN,
-        scannedAt: new Date(),
-      });
-    } catch {
-      return;
-    }
   }
 
   private toResponse(checked: CheckedScan): ScanValidationResult {
