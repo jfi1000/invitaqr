@@ -261,7 +261,16 @@ export async function importGuestCsv(
   const response = await api.post<{ data: ImportResult }>(
     `/events/${eventId}/guests/import-csv`,
     body,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    {
+      // React Native sets the multipart boundary. A bare Content-Type drops the file.
+      headers: { 'Content-Type': undefined },
+      transformRequest: (data, headers) => {
+        if (headers) {
+          delete headers['Content-Type']
+        }
+        return data
+      },
+    },
   )
   return unwrap(response.data)
 }

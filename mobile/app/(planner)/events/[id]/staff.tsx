@@ -126,6 +126,7 @@ export default function EventStaffScreen() {
       ) : null}
 
       <FlatList
+        style={{ flex: 1 }}
         className="mt-4"
         data={staffQuery.data ?? []}
         keyExtractor={(item) => item.staffId}
@@ -134,7 +135,7 @@ export default function EventStaffScreen() {
             <Text className="mt-2 text-base text-mute">
               Aún no hay personal asignado.
             </Text>
-          ) : null
+          ) : undefined
         }
         renderItem={({ item }) => (
           <View className="mb-3 rounded-3xl border border-line bg-card px-4 py-4">

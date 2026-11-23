@@ -106,16 +106,17 @@ export default function DashboardScreen() {
       ) : null}
 
       <FlatList
+        style={{ flex: 1 }}
         data={events.data ?? []}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 24 }}
         ListEmptyComponent={
-          events.isLoading ? null : <EmptyEventsState onCreate={() => setOpen(true)} />
+          events.isLoading ? undefined : <EmptyEventsState onCreate={() => setOpen(true)} />
         }
         ListFooterComponent={
           events.data && events.data.length > 0 ? (
             <EventsFooterArt onCreate={() => setOpen(true)} />
-          ) : null
+          ) : undefined
         }
         renderItem={({ item }) => (
           <EventCard

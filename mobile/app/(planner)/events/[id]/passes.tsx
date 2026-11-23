@@ -139,13 +139,14 @@ export default function PassesScreen() {
         />
       ) : null}
       <FlatList
+        style={{ flex: 1 }}
         className="mt-4"
         data={passes}
         keyExtractor={(item) => item.pass?.id ?? item.id}
         ListEmptyComponent={
           guests.isLoading ? (
             <Text className="text-base text-mute">Cargando…</Text>
-          ) : allGuests.length === 0 ? null : (
+          ) : allGuests.length === 0 ? undefined : (
             <Text className="mt-6 text-base text-mute">Todavía no hay pases.</Text>
           )
         }

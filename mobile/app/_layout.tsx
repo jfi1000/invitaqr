@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter'
 import { Oswald_500Medium, Oswald_600SemiBold } from '@expo-google-fonts/oswald'
 import { Stack, useRouter, useSegments } from 'expo-router'
@@ -41,7 +43,7 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -49,6 +51,7 @@ export default function RootLayout() {
     Oswald_500Medium,
     Oswald_600SemiBold,
   })
+  const fontsReady = fontsLoaded || Boolean(fontError)
   const hydrated = useAuthStore((state) => state.hydrated)
 
   useEffect(() => {
@@ -56,21 +59,23 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (fontsLoaded && hydrated) {
+    if (fontsReady && hydrated) {
       SplashScreen.hideAsync().catch(() => undefined)
     }
-  }, [fontsLoaded, hydrated])
+  }, [fontsReady, hydrated])
 
-  if (!fontsLoaded || !hydrated) {
+  if (!fontsReady || !hydrated) {
     return null
   }
 
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <StatusBar style="dark" />
-        <AuthGate />
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <StatusBar style="dark" />
+          <AuthGate />
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }

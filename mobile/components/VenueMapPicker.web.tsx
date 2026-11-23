@@ -170,7 +170,6 @@ function TouchMap({
   }, [point.latitude, point.longitude])
 
   return (
-    // @ts-expect-error div nativo en web
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', minHeight: 280, touchAction: 'none' }}

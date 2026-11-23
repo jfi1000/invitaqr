@@ -132,24 +132,34 @@ export function DateTimeField({
       ) : null}
       {hint ? <Text className="mt-2 text-sm text-mute">{hint}</Text> : null}
       {open ? (
-        <DateTimePicker
-          value={clampToMinimum(parseLocal(localValue), minimum)}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={minimum}
-          onChange={(event: DateTimePickerEvent, date?: Date) => {
-            if (Platform.OS !== 'ios') {
-              setOpen(false)
-            }
-            if (event.type === 'dismissed') {
-              setOpen(false)
-              return
-            }
-            if (date) {
-              applyChange(fromDate(date))
-            }
-          }}
-        />
+        <View>
+          <DateTimePicker
+            value={clampToMinimum(parseLocal(localValue), minimum)}
+            mode="datetime"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            minimumDate={minimum}
+            style={Platform.OS === 'ios' ? { height: 180 } : undefined}
+            onChange={(event: DateTimePickerEvent, date?: Date) => {
+              if (Platform.OS !== 'ios') {
+                setOpen(false)
+              }
+              if (event.type === 'dismissed') {
+                setOpen(false)
+                return
+              }
+              if (date) {
+                applyChange(fromDate(date))
+              }
+            }}
+          />
+          {Platform.OS === 'ios' ? (
+            <Pressable className="mt-2 self-end" onPress={() => setOpen(false)}>
+              <Text className="text-base text-indigo" style={{ fontFamily: 'Inter_600SemiBold' }}>
+                Listo
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   )

@@ -4,10 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --go",
     "web": "expo start --web",
-    "android": "expo start --android",
-    "ios": "expo start --ios"
+    "android": "expo start --android --go",
+    "ios": "expo start --ios --go"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.2.3",
@@ -20,16 +20,16 @@
     "@react-navigation/native-stack": "^7.21.0",
     "@tanstack/react-query": "^5.62.8",
     "axios": "^1.7.9",
-    "expo": "~58.0.25",
+    "expo": "~58.0.26",
     "expo-constants": "~58.0.16",
-    "expo-dev-client": "~58.0.20",
+    "expo-dev-client": "~58.0.21",
     "expo-document-picker": "~58.0.5",
     "expo-font": "~58.0.12",
     "expo-image-picker": "~58.0.10",
     "expo-linear-gradient": "~58.0.4",
     "expo-linking": "~58.0.17",
     "expo-location": "~58.0.22",
-    "expo-router": "~58.0.31",
+    "expo-router": "~58.0.32",
     "expo-secure-store": "~58.0.3",
     "expo-splash-screen": "~58.0.14",
     "expo-status-bar": "~58.0.5",

@@ -323,6 +323,7 @@ export default function GuestsScreen() {
         <Text className="mt-3 text-sm text-red-700">{apiErrorMessage(guests.error)}</Text>
       ) : null}
       <FlatList
+        style={{ flex: 1 }}
         className="mt-4"
         data={guests.data ?? []}
         keyExtractor={(item) => item.id}
