@@ -44,7 +44,24 @@ export default function PlannerLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="events" options={{ href: null }} />
+      <Tabs.Screen
+        name="billing"
+        options={{
+          title: 'Facturación',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
+        }}
+      />
+      <Tabs.Screen
+        name="events"
+        options={{
+          title: 'Evento',
+          // href: null marks the route hidden and SDK 58 immediately
+          // redirects back to the first tab, so the event screen never opens.
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
+        }}
+      />
     </Tabs>
   )
 }

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { StatusBadge } from '../../components/StatusBadge'
 import { Screen } from '../../components/ui/Screen'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { useAuth } from '../../hooks/useAuth'
-import { apiErrorMessage, getMe } from '../../lib/api'
+import { apiErrorMessage, getMe, getPurchases } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 import { type as typography } from '../../lib/typography'
 import { useAuthStore } from '../../stores/auth.store'
@@ -31,8 +32,6 @@ const MENU: MenuItem[] = [
     key: 'billing',
     label: 'Plan y Facturación',
     icon: 'card-outline',
-    subtitle: 'Plan: FREE — ',
-    subtitleAccent: 'Activo',
   },
   {
     key: 'settings',
@@ -60,7 +59,15 @@ function soon() {
   Alert.alert('Próximamente', 'Esta opción estará disponible pronto.')
 }
 
+function billingSubtitle(count: number | undefined, pending: boolean): string {
+  if (pending || count === undefined) return 'Cargando contrataciones…'
+  if (count === 0) return 'Sin paquetes contratados'
+  if (count === 1) return '1 paquete contratado'
+  return `${count} paquetes contratados`
+}
+
 export default function ProfileScreen() {
+  const router = useRouter()
   const storedUser = useAuthStore((state) => state.user)
   const { logout } = useAuth()
   const [busy, setBusy] = useState(false)
@@ -69,6 +76,10 @@ export default function ProfileScreen() {
     queryFn: getMe,
   })
   const user = profile.data ?? storedUser
+  const purchases = useQuery({
+    queryKey: queryKeys.purchases,
+    queryFn: getPurchases,
+  })
 
   return (
     <Screen>
@@ -104,7 +115,13 @@ export default function ProfileScreen() {
           {MENU.map((item) => (
             <Pressable
               key={item.key}
-              onPress={soon}
+              onPress={() => {
+                if (item.key === 'billing') {
+                  router.push('/(planner)/billing')
+                  return
+                }
+                soon()
+              }}
               className="flex-row items-center rounded-2xl border border-line bg-card px-4 py-4 active:opacity-80"
             >
               <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-mist">
@@ -112,10 +129,12 @@ export default function ProfileScreen() {
               </View>
               <View className="flex-1">
                 <Text style={typography.section}>{item.label}</Text>
-                {item.subtitle ? (
+                {item.key === 'billing' || item.subtitle ? (
                   <Text style={[typography.caption, { marginTop: 2 }]}>
-                    {item.subtitle}
-                    {item.subtitleAccent ? (
+                    {item.key === 'billing'
+                      ? billingSubtitle(purchases.data?.length, purchases.isPending)
+                      : item.subtitle}
+                    {item.key !== 'billing' && item.subtitleAccent ? (
                       <Text style={{ color: '#16a34a', fontFamily: 'Inter_600SemiBold' }}>
                         {item.subtitleAccent}
                       </Text>

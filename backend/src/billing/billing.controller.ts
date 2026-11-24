@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Headers,
   HttpCode,
   Post,
@@ -22,6 +23,19 @@ import { CreateCheckoutDto } from './dto/create-checkout.dto';
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
+
+  @Get('purchases')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  listPurchases(@CurrentUser() user: AuthUser) {
+    if (user.role !== UserRole.PLANNER && user.role !== UserRole.OWNER) {
+      throw new ForbiddenException({
+        error: 'FORBIDDEN',
+        message: 'Solo el organizador puede ver la facturación',
+      });
+    }
+    return this.billingService.listPurchases(user.id, user.role);
+  }
 
   @Post('checkout')
   @ApiBearerAuth()

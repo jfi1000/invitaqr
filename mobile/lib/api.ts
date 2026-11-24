@@ -9,6 +9,7 @@ import type {
   ImportResult,
   InviteStaffResult,
   PlannerEvent,
+  PurchaseRecord,
   RsvpView,
   Session,
 } from './types'
@@ -143,6 +144,22 @@ export async function changeEventStatus(
   status: PlannerEvent['status'],
 ): Promise<PlannerEvent> {
   const response = await api.patch<{ data: PlannerEvent }>(`/events/${id}/status`, { status })
+  return unwrap(response.data)
+}
+
+export async function getPurchases(): Promise<PurchaseRecord[]> {
+  const response = await api.get<{ data: PurchaseRecord[] }>('/billing/purchases')
+  return unwrap(response.data)
+}
+
+export async function createCheckout(
+  eventId: string,
+  plan: 'BASIC' | 'PRO',
+): Promise<{ url: string }> {
+  const response = await api.post<{ data: { url: string } }>('/billing/checkout', {
+    eventId,
+    plan,
+  })
   return unwrap(response.data)
 }
 

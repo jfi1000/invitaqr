@@ -34,6 +34,16 @@ export interface InviteStaffResult {
   status: 'invited' | 'assigned'
 }
 
+export interface PurchaseRecord {
+  id: string
+  eventId: string
+  eventName: string
+  plan: 'BASIC' | 'PRO'
+  amount: number
+  currency: string
+  paidAt: string | null
+}
+
 export interface PlannerEvent {
   id: string
   ownerId: string
@@ -48,6 +58,8 @@ export interface PlannerEvent {
   capacity: number
   rsvpDeadline: string | null
   plan: EventPlan
+  /** Paquete ya cobrado. Null si el plan del evento todavía no se pagó. */
+  paidPlan?: 'BASIC' | 'PRO' | null
   status: EventStatus
   type: EventType
   hasTables: boolean
@@ -57,7 +69,9 @@ export interface PlannerEvent {
   zones: string | null
   logo: string | null
   guestCount?: number
+  companionCount?: number
   confirmedCount?: number
+  confirmedCompanionCount?: number
   createdAt: string
   updatedAt: string
 }

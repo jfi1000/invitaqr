@@ -16,9 +16,11 @@ import { AppButton } from '../../components/ui/AppButton'
 import { Screen } from '../../components/ui/Screen'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { useCreateEvent, useEvents } from '../../hooks/useEvents'
-import { apiErrorMessage } from '../../lib/api'
+import { apiErrorMessage, createCheckout } from '../../lib/api'
+import { openStripeCheckout } from '../../lib/checkout'
 import { toIso } from '../../lib/format'
 import { openEvent } from '../../lib/navigation'
+import type { EventPlan } from '../../lib/types'
 
 export default function DashboardScreen() {
   const router = useRouter()
@@ -30,13 +32,15 @@ export default function DashboardScreen() {
   const [error, setError] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [createdName, setCreatedName] = useState('')
+  const [paying, setPaying] = useState<'BASIC' | 'PRO' | null>(null)
 
   function resetForm() {
     setValues(emptyEventEditorValues())
     setError(null)
   }
 
-  async function handleCreate() {
+  async function handleCreate(planOverride?: EventPlan) {
+    const plan = planOverride ?? values.plan
     if (!values.name.trim()) {
       setError('Escribe el nombre del evento')
       return
@@ -71,13 +75,19 @@ export default function DashboardScreen() {
       return
     }
     setError(null)
+    setPaying(plan === 'BASIC' || plan === 'PRO' ? plan : null)
     try {
-      const payload = buildEventPayload(values)
+      const payload = buildEventPayload({ ...values, plan })
       const event = await createEvent.mutateAsync({
         ...payload,
         starts_at: startsAt,
         ends_at: values.ends.trim() ? endsAt : undefined,
       })
+      if (plan === 'BASIC' || plan === 'PRO') {
+        const session = await createCheckout(event.id, plan)
+        await openStripeCheckout(session.url)
+        return
+      }
       setOpen(false)
       resetForm()
       setCreatedName(event.name)
@@ -85,6 +95,8 @@ export default function DashboardScreen() {
       setCreatedId(event.id)
     } catch (caught) {
       setError(apiErrorMessage(caught))
+    } finally {
+      setPaying(null)
     }
   }
 
@@ -142,7 +154,12 @@ export default function DashboardScreen() {
               showsVerticalScrollIndicator={false}
             >
               <EventEditorFields
-                values={values}
+                values={{ ...values, plan: paying ?? values.plan }}
+                paying={paying}
+                onPay={(plan) => {
+                  setValues((current) => ({ ...current, plan }))
+                  void handleCreate(plan)
+                }}
                 onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
               />
               {error ? <Text className="mt-3 text-base text-red-700">{error}</Text> : null}
@@ -157,7 +174,15 @@ export default function DashboardScreen() {
               }}
             >
               <AppButton
-                label={createEvent.isPending ? 'Creando…' : 'Crear evento'}
+                label={
+                  createEvent.isPending
+                    ? paying
+                      ? 'Abriendo pago…'
+                      : 'Creando…'
+                    : values.plan === 'FREE'
+                      ? 'Crear evento'
+                      : `Crear y pagar ${values.plan}`
+                }
                 loading={createEvent.isPending}
                 onPress={() => void handleCreate()}
               />

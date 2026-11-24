@@ -10,8 +10,11 @@ interface DateTimeFieldProps {
   onChange: (value: string) => void
   optional?: boolean
   hint?: string
-  /** If set, blocks selecting a moment before this date. Defaults to now. */
-  minimumDate?: Date
+  /**
+   * Earliest selectable moment. Defaults to now.
+   * Pass null to allow dates in the past (editing an event that already started).
+   */
+  minimumDate?: Date | null
 }
 
 function toLocalInput(value: string): string {
@@ -57,8 +60,11 @@ export function DateTimeField({
 }: DateTimeFieldProps) {
   const [open, setOpen] = useState(false)
   const localValue = toLocalInput(value)
-  const minimum = useMemo(() => minimumDate ?? new Date(), [minimumDate])
-  const minInput = fromDate(minimum)
+  const minimum = useMemo(
+    () => (minimumDate === null ? null : minimumDate ?? new Date()),
+    [minimumDate],
+  )
+  const minInput = minimum ? fromDate(minimum) : undefined
 
   function applyChange(next: string) {
     if (!next) {
@@ -67,7 +73,7 @@ export function DateTimeField({
     }
     const parsed = parseLocal(next)
     if (Number.isNaN(parsed.getTime())) return
-    onChange(fromDate(clampToMinimum(parsed, minimum)))
+    onChange(fromDate(minimum ? clampToMinimum(parsed, minimum) : parsed))
   }
 
   if (Platform.OS === 'web') {
@@ -134,10 +140,10 @@ export function DateTimeField({
       {open ? (
         <View>
           <DateTimePicker
-            value={clampToMinimum(parseLocal(localValue), minimum)}
+            value={minimum ? clampToMinimum(parseLocal(localValue), minimum) : parseLocal(localValue)}
             mode="datetime"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            minimumDate={minimum}
+            {...(minimum ? { minimumDate: minimum } : {})}
             style={Platform.OS === 'ios' ? { height: 180 } : undefined}
             onChange={(event: DateTimePickerEvent, date?: Date) => {
               if (Platform.OS !== 'ios') {
