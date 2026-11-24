@@ -24,6 +24,16 @@ const PLAN_AMOUNT: Record<PaidPlan, number> = {
   PRO: 59900,
 };
 
+const PLAN_CAPACITY: Record<PaidPlan, number> = {
+  BASIC: 150,
+  PRO: 500,
+};
+
+const PLAN_RANK: Record<PaidPlan, number> = {
+  BASIC: 1,
+  PRO: 2,
+};
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -49,10 +59,13 @@ export class BillingService {
     const paid = await this.payments.findOne({
       where: { eventId: event.id, status: PaymentStatus.PAID },
     });
-    if (paid) {
+    if (paid && PLAN_RANK[plan] <= PLAN_RANK[paid.plan]) {
       throw new ConflictException({
         error: 'PAYMENT_ALREADY_COMPLETED',
-        message: 'Este evento ya tiene un pago confirmado',
+        message:
+          paid.plan === plan
+            ? 'Este evento ya tiene ese paquete'
+            : 'Este evento ya tiene un paquete superior',
       });
     }
 
@@ -64,8 +77,8 @@ export class BillingService {
       line_items: [{ price: this.priceId(plan), quantity: 1 }],
       metadata: { eventId: event.id, plan },
       client_reference_id: event.id,
-      success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/payment/cancel`,
+      success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&event_id=${event.id}&plan=${plan}`,
+      cancel_url: `${appUrl}/payment/cancel?event_id=${event.id}`,
     });
 
     if (!session.url) {
@@ -89,6 +102,60 @@ export class BillingService {
     );
 
     return { url: session.url };
+  }
+
+  async listPurchases(
+    userId: string,
+    role: UserRole,
+  ): Promise<
+    {
+      id: string;
+      eventId: string;
+      eventName: string;
+      plan: PaidPlan;
+      amount: number;
+      currency: string;
+      paidAt: string | null;
+    }[]
+  > {
+    const rows: {
+      id: string;
+      eventId: string;
+      eventName: string;
+      plan: string;
+      amount: number;
+      currency: string;
+      paidAt: Date | string | null;
+    }[] = await this.dataSource.query(
+      `SELECT p.id,
+              p.event_id AS "eventId",
+              e.name AS "eventName",
+              p.plan,
+              p.amount,
+              p.currency,
+              p.paid_at AS "paidAt"
+       FROM payments p
+       INNER JOIN events e ON e.id = p.event_id
+       WHERE p.status = 'PAID'
+         AND ($1::varchar = 'OWNER' OR e.owner_id = $2::uuid)
+       ORDER BY p.paid_at DESC NULLS LAST, p.created_at DESC`,
+      [role, userId],
+    );
+
+    return rows.flatMap((row) => {
+      if (row.plan !== 'BASIC' && row.plan !== 'PRO') return [];
+      return [
+        {
+          id: row.id,
+          eventId: row.eventId,
+          eventName: row.eventName,
+          plan: row.plan,
+          amount: Number(row.amount),
+          currency: (row.currency || 'MXN').toUpperCase(),
+          paidAt: row.paidAt ? new Date(row.paidAt).toISOString() : null,
+        },
+      ];
+    });
   }
 
   async handleWebhook(
@@ -171,7 +238,10 @@ export class BillingService {
         }
       }
       await payments.save(payment);
-      await events.update(eventId, { plan: plan as EventPlan });
+      await events.update(eventId, {
+        plan: plan as EventPlan,
+        capacity: PLAN_CAPACITY[plan],
+      });
     });
   }
 

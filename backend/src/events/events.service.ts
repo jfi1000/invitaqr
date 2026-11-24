@@ -82,12 +82,16 @@ export class EventsService {
     const rows: {
       eventId: string;
       guestCount: number | string;
+      companionCount: number | string;
       confirmedCount: number | string;
+      confirmedCompanionCount: number | string;
     }[] = await this.dataSource.query(
       `SELECT
          e.id AS "eventId",
          (SELECT COUNT(*)::int FROM guests g WHERE g.event_id = e.id) AS "guestCount",
-         COUNT(*) FILTER (WHERE p.rsvp_status = 'CONFIRMED')::int AS "confirmedCount"
+         (SELECT COALESCE(SUM(g.max_companions), 0)::int FROM guests g WHERE g.event_id = e.id) AS "companionCount",
+         COUNT(*) FILTER (WHERE p.rsvp_status = 'CONFIRMED')::int AS "confirmedCount",
+         COALESCE(SUM(p.companions_confirmed) FILTER (WHERE p.rsvp_status = 'CONFIRMED'), 0)::int AS "confirmedCompanionCount"
        FROM events e
        LEFT JOIN passes p ON p.event_id = e.id
        WHERE e.id = ANY($1::uuid[])
@@ -99,13 +103,20 @@ export class EventsService {
         row.eventId,
         {
           guestCount: Number(row.guestCount ?? 0),
+          companionCount: Number(row.companionCount ?? 0),
           confirmedCount: Number(row.confirmedCount ?? 0),
+          confirmedCompanionCount: Number(row.confirmedCompanionCount ?? 0),
         },
       ]),
     );
 
     for (const event of events) {
-      const stats = byId.get(event.id) ?? { guestCount: 0, confirmedCount: 0 };
+      const stats = byId.get(event.id) ?? {
+        guestCount: 0,
+        companionCount: 0,
+        confirmedCount: 0,
+        confirmedCompanionCount: 0,
+      };
       Object.assign(event, stats);
     }
     return events;
@@ -113,7 +124,9 @@ export class EventsService {
 
   async findOne(user: AuthUser, id: string): Promise<Event> {
     this.assertCanManage(user);
-    return this.requireAccessible(user, id);
+    const event = await this.requireAccessible(user, id);
+    Object.assign(event, { paidPlan: await this.paidPlanFor(event.id) });
+    return event;
   }
 
   async update(user: AuthUser, id: string, dto: UpdateEventDto): Promise<Event> {
@@ -220,6 +233,18 @@ export class EventsService {
       });
     }
     return event;
+  }
+
+  private async paidPlanFor(eventId: string): Promise<'BASIC' | 'PRO' | null> {
+    const rows: { plan: string }[] = await this.dataSource.query(
+      `SELECT plan FROM payments
+       WHERE event_id = $1 AND status = 'PAID' AND plan IN ('BASIC', 'PRO')
+       ORDER BY CASE plan WHEN 'PRO' THEN 2 ELSE 1 END DESC
+       LIMIT 1`,
+      [eventId],
+    );
+    const plan = rows[0]?.plan;
+    return plan === 'BASIC' || plan === 'PRO' ? plan : null;
   }
 
   private assertCapacity(plan: EventPlan, capacity: number): void {

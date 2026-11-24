@@ -410,7 +410,7 @@ export class GuestsService {
 
       const existing = await manager.getRepository(Guest).find({
         where: { eventId },
-        select: ['id', 'name', 'phone', 'email'],
+        select: ['id', 'name', 'phone', 'email', 'maxCompanions'],
       });
       // email/phone normalizados → nombre del invitado ya registrado
       const emails = new Map<string, string>();
@@ -466,15 +466,31 @@ export class GuestsService {
         ready.push(guest);
       }
 
-      const limit = PLAN_GUEST_LIMIT[event.plan];
-      if (existing.length + ready.length > limit) {
-        throw new BadRequestException({
-          error: 'PLAN_LIMIT_EXCEEDED',
-          message: `El plan ${event.plan} permite hasta ${limit} invitados`,
-        });
+      const limit = this.peopleLimit(event);
+      let reserved = existing.reduce(
+        (sum, guest) => sum + this.partySize(guest.maxCompanions ?? 0),
+        0,
+      );
+      const accepted: NormalizedGuest[] = [];
+      for (const guest of ready) {
+        const party = this.partySize(guest.maxCompanions);
+        if (reserved + party > limit) {
+          const remaining = Math.max(0, limit - reserved);
+          const message = this.seatsMessage(limit, remaining);
+          if (strictDuplicates) {
+            throw new BadRequestException({
+              error: 'PLAN_LIMIT_EXCEEDED',
+              message,
+            });
+          }
+          rejectedRows.push({ line: 0, reason: message });
+          continue;
+        }
+        reserved += party;
+        accepted.push(guest);
       }
 
-      const saved = await this.saveGuests(manager, eventId, ready);
+      const saved = await this.saveGuests(manager, eventId, accepted);
       return {
         imported: saved.views.length,
         duplicates: skipped,
@@ -532,6 +548,24 @@ export class GuestsService {
         this.toView(guest, savedPasses[index] ?? null),
       ),
     };
+  }
+
+  private peopleLimit(event: Event): number {
+    const planLimit = PLAN_GUEST_LIMIT[event.plan];
+    const capacity = event.capacity > 0 ? event.capacity : planLimit;
+    return Math.min(capacity, planLimit);
+  }
+
+  private partySize(maxCompanions: number): number {
+    return 1 + maxCompanions;
+  }
+
+  private seatsMessage(limit: number, remaining: number): string {
+    if (remaining <= 0) {
+      return `El cupo de ${limit} personas ya está completo`;
+    }
+    const maxCompanions = remaining - 1;
+    return `Quedan ${remaining} lugares de ${limit}. Este invitado puede llevar hasta ${maxCompanions} acompañantes`;
   }
 
   private async requireOwnedEvent(
