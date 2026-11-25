@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, FlatList, Modal, Platform, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBadge } from '../../../../components/StatusBadge'
@@ -38,8 +38,18 @@ export default function EventStaffScreen() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const alertedLoadError = useRef<unknown>(null)
+
+  useEffect(() => {
+    if (!staffQuery.isError) {
+      alertedLoadError.current = null
+      return
+    }
+    if (alertedLoadError.current === staffQuery.error) return
+    alertedLoadError.current = staffQuery.error
+    Alert.alert('Error', apiErrorMessage(staffQuery.error))
+  }, [staffQuery.isError, staffQuery.error])
 
   const invite = useMutation({
     mutationFn: () =>
@@ -52,14 +62,13 @@ export default function EventStaffScreen() {
       setInviteOpen(false)
       setName('')
       setEmail('')
-      setError(null)
       setNotice(
         result.status === 'invited'
           ? 'Invitación enviada (activar cuenta)'
           : 'Staff asignado: se envió el enlace para escanear',
       )
     },
-    onError: (caught) => setError(apiErrorMessage(caught)),
+    onError: (caught) => Alert.alert('Error', apiErrorMessage(caught)),
   })
 
   const remove = useMutation({
@@ -68,7 +77,7 @@ export default function EventStaffScreen() {
       void client.invalidateQueries({ queryKey: queryKeys.staff(eventId) })
       setNotice('Staff removido del evento')
     },
-    onError: (caught) => setError(apiErrorMessage(caught)),
+    onError: (caught) => Alert.alert('Error', apiErrorMessage(caught)),
   })
 
   function confirmRemove(member: EventStaffMember) {
@@ -101,10 +110,7 @@ export default function EventStaffScreen() {
       <AppButton
         className="mt-2"
         label="Invitar staff"
-        onPress={() => {
-          setInviteOpen(true)
-          setError(null)
-        }}
+        onPress={() => setInviteOpen(true)}
       />
 
       {notice ? (
@@ -112,19 +118,9 @@ export default function EventStaffScreen() {
           {notice}
         </Text>
       ) : null}
-      {error && !inviteOpen ? (
-        <Text className="mt-3 text-sm text-red-700">{error}</Text>
-      ) : null}
-
       {staffQuery.isPending ? (
         <Text className="mt-4 text-base text-mute">Cargando…</Text>
       ) : null}
-      {staffQuery.isError ? (
-        <Text className="mt-4 text-base text-red-700">
-          {apiErrorMessage(staffQuery.error)}
-        </Text>
-      ) : null}
-
       <FlatList
         style={{ flex: 1 }}
         className="mt-4"
@@ -190,14 +186,13 @@ export default function EventStaffScreen() {
               value={email}
               onChangeText={setEmail}
             />
-            {error ? <Text className="mt-3 text-sm text-red-700">{error}</Text> : null}
             <AppButton
               className="mt-5"
               label={invite.isPending ? 'Enviando…' : 'Enviar invitación'}
               loading={invite.isPending}
               onPress={() => {
                 if (!name.trim() || !email.trim()) {
-                  setError('Escribe nombre y correo')
+                  Alert.alert('Error', 'Escribe nombre y correo')
                   return
                 }
                 invite.mutate()

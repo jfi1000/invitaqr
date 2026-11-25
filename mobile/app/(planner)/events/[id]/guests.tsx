@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as DocumentPicker from 'expo-document-picker'
 import { useLocalSearchParams } from 'expo-router'
-import { createElement, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import {
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -70,9 +71,19 @@ export default function GuestsScreen() {
   const [tableNumber, setTableNumber] = useState('')
   const [text, setText] = useState('')
   const [summary, setSummary] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] =
     useState<Record<GuestField, string | null>>(EMPTY_FIELD_ERRORS)
+  const alertedLoadError = useRef<unknown>(null)
+
+  useEffect(() => {
+    if (!guests.isError) {
+      alertedLoadError.current = null
+      return
+    }
+    if (alertedLoadError.current === guests.error) return
+    alertedLoadError.current = guests.error
+    Alert.alert('Error', apiErrorMessage(guests.error))
+  }, [guests.isError, guests.error])
   const isSocial = eventQuery.data?.type === 'social'
   const hasTables = Boolean(isSocial && eventQuery.data?.hasTables)
   const tableCount = eventQuery.data?.tableCount ?? null
@@ -94,7 +105,6 @@ export default function GuestsScreen() {
     setCompanions('0')
     setTableNumber('')
     setFieldErrors(EMPTY_FIELD_ERRORS)
-    setError(null)
   }
 
   function validateGuestForm(): {
@@ -135,10 +145,9 @@ export default function GuestsScreen() {
     setFieldErrors(next)
     const hasError = Object.values(next).some(Boolean)
     if (hasError) {
-      setError('Revisa los campos marcados en rojo')
+      Alert.alert('Error', 'Revisa los campos marcados en rojo')
       return null
     }
-    setError(null)
     return { maxCompanions, table_number }
   }
 
@@ -164,7 +173,7 @@ export default function GuestsScreen() {
           ...current,
           contact: 'Para enviar la invitación necesitas un correo',
         }))
-        setError('Revisa los campos marcados en rojo')
+        Alert.alert('Error', 'Revisa los campos marcados en rojo')
         throw new Error('VALIDATION')
       }
       return createGuest(eventId, {
@@ -186,7 +195,7 @@ export default function GuestsScreen() {
       if (caught instanceof Error && caught.message === 'VALIDATION') {
         return
       }
-      setError(apiErrorMessage(caught))
+      Alert.alert('Error', apiErrorMessage(caught))
     },
   })
 
@@ -194,10 +203,9 @@ export default function GuestsScreen() {
     mutationFn: (guestId: string) => sendGuestInvite(eventId, guestId),
     onSuccess: () => {
       setSummary('Invitación enviada.')
-      setError(null)
       refresh()
     },
-    onError: (caught) => setError(apiErrorMessage(caught)),
+    onError: (caught) => Alert.alert('Error', apiErrorMessage(caught)),
   })
 
   const pasteText = useMutation({
@@ -207,7 +215,7 @@ export default function GuestsScreen() {
           ...current,
           text: 'Pega al menos una línea con nombre y teléfono o correo',
         }))
-        setError('Revisa los campos marcados en rojo')
+        Alert.alert('Error', 'Revisa los campos marcados en rojo')
         throw new Error('VALIDATION')
       }
       return importGuestText(eventId, text)
@@ -217,14 +225,13 @@ export default function GuestsScreen() {
       setMode(null)
       setText('')
       setFieldErrors(EMPTY_FIELD_ERRORS)
-      setError(null)
       refresh()
     },
     onError: (caught) => {
       if (caught instanceof Error && caught.message === 'VALIDATION') {
         return
       }
-      setError(apiErrorMessage(caught))
+      Alert.alert('Error', apiErrorMessage(caught))
     },
   })
 
@@ -256,14 +263,12 @@ export default function GuestsScreen() {
     onSuccess: (result) => {
       if (!result) return
       setSummary(describe(result))
-      setError(null)
       refresh()
     },
-    onError: (caught) => setError(apiErrorMessage(caught)),
+    onError: (caught) => Alert.alert('Error', apiErrorMessage(caught)),
   })
 
   function startCsvImport() {
-    setError(null)
     if (Platform.OS === 'web') {
       fileInputRef.current?.click()
       return
@@ -296,7 +301,6 @@ export default function GuestsScreen() {
           label="Pegar texto"
           variant="secondary"
           onPress={() => {
-            setError(null)
             setFieldErrors(EMPTY_FIELD_ERRORS)
             setMode('text')
           }}
@@ -318,10 +322,6 @@ export default function GuestsScreen() {
           })
         : null}
       {summary ? <Text className="mt-3 text-sm text-emerald-700">{summary}</Text> : null}
-      {error ? <Text className="mt-3 text-sm text-red-700">{error}</Text> : null}
-      {guests.isError ? (
-        <Text className="mt-3 text-sm text-red-700">{apiErrorMessage(guests.error)}</Text>
-      ) : null}
       <FlatList
         style={{ flex: 1 }}
         className="mt-4"
@@ -482,7 +482,6 @@ export default function GuestsScreen() {
                     ? 'Hace falta teléfono o correo. Los acompañantes son por invitado.'
                     : 'Hace falta teléfono o correo.'}
               </Text>
-              {error ? <Text className="mt-3 text-sm text-red-600">{error}</Text> : null}
               <AppButton
                 className="mt-6"
                 label={
@@ -523,9 +522,6 @@ export default function GuestsScreen() {
               />
               {fieldErrors.text ? (
                 <Text className="mt-1 text-sm text-red-600">{fieldErrors.text}</Text>
-              ) : null}
-              {error && mode === 'text' ? (
-                <Text className="mt-3 text-sm text-red-600">{error}</Text>
               ) : null}
               <AppButton
                 className="mt-6"

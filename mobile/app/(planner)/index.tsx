@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router'
-import { useRef, useState } from 'react'
-import { FlatList, Modal, ScrollView, Text, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, FlatList, Modal, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   buildEventPayload,
@@ -27,50 +27,58 @@ export default function DashboardScreen() {
   const createEvent = useCreateEvent()
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState<EventEditorValues>(emptyEventEditorValues())
-  const [error, setError] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [createdName, setCreatedName] = useState('')
+  const alertedLoadError = useRef<unknown>(null)
+
+  useEffect(() => {
+    if (!events.isError) {
+      alertedLoadError.current = null
+      return
+    }
+    if (alertedLoadError.current === events.error) return
+    alertedLoadError.current = events.error
+    Alert.alert('Error', apiErrorMessage(events.error))
+  }, [events.isError, events.error])
 
   function resetForm() {
     setValues(emptyEventEditorValues())
-    setError(null)
   }
 
   async function handleCreate() {
     if (!values.name.trim()) {
-      setError('Escribe el nombre del evento')
+      Alert.alert('Error', 'Escribe el nombre del evento')
       return
     }
     const startsAt = toIso(values.starts)
     if (!startsAt) {
-      setError('Elige la fecha y hora de inicio')
+      Alert.alert('Error', 'Elige la fecha y hora de inicio')
       return
     }
     if (new Date(startsAt).getTime() < Date.now()) {
-      setError('La fecha de inicio no puede estar en el pasado')
+      Alert.alert('Error', 'La fecha de inicio no puede estar en el pasado')
       return
     }
     const endsAt = values.ends.trim() ? toIso(values.ends) : startsAt
     if (!endsAt) {
-      setError('La fecha de fin no es válida. Déjala vacía si es un solo día.')
+      Alert.alert('Error', 'La fecha de fin no es válida. Déjala vacía si es un solo día.')
       return
     }
     if (new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
-      setError('La fecha de fin no puede ser anterior a la de inicio')
+      Alert.alert('Error', 'La fecha de fin no puede ser anterior a la de inicio')
       return
     }
     if (values.type === 'social' && values.hasTables) {
       const tables = Number(values.tableCount)
       if (!Number.isFinite(tables) || tables < 1) {
-        setError('Indica cuántas mesas tendrá el evento')
+        Alert.alert('Error', 'Indica cuántas mesas tendrá el evento')
         return
       }
     }
     if (values.type === 'entertainment' && values.hasZones && !values.zones.trim()) {
-      setError('Escribe las zonas separadas por coma')
+      Alert.alert('Error', 'Escribe las zonas separadas por coma')
       return
     }
-    setError(null)
     try {
       const payload = buildEventPayload(values)
       const event = await createEvent.mutateAsync({
@@ -84,7 +92,7 @@ export default function DashboardScreen() {
       createdIdRef.current = event.id
       setCreatedId(event.id)
     } catch (caught) {
-      setError(apiErrorMessage(caught))
+      Alert.alert('Error', apiErrorMessage(caught))
     }
   }
 
@@ -101,9 +109,6 @@ export default function DashboardScreen() {
       />
 
       {events.isLoading ? <Text className="text-base text-mute">Cargando…</Text> : null}
-      {events.isError ? (
-        <Text className="text-base text-red-700">{apiErrorMessage(events.error)}</Text>
-      ) : null}
 
       <FlatList
         style={{ flex: 1 }}
@@ -145,7 +150,6 @@ export default function DashboardScreen() {
                 values={values}
                 onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
               />
-              {error ? <Text className="mt-3 text-base text-red-700">{error}</Text> : null}
             </ScrollView>
             <View
               style={{
