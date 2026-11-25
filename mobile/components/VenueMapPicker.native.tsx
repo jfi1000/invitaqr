@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Linking,
   Modal,
   Pressable,
+  StyleSheet,
   Text,
   View,
 } from 'react-native'
@@ -23,6 +24,27 @@ interface VenueMapPickerProps {
   onConfirm: (point: GeoPoint) => void
 }
 
+function savedPoint(
+  initial?: { latitude: number; longitude: number } | null,
+): { latitude: number; longitude: number } | null {
+  const latitude = Number(initial?.latitude)
+  const longitude = Number(initial?.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return { latitude, longitude }
+}
+
+function regionFor(
+  point: { latitude: number; longitude: number },
+  delta = 0.01,
+): Region {
+  return {
+    latitude: point.latitude,
+    longitude: point.longitude,
+    latitudeDelta: delta,
+    longitudeDelta: delta,
+  }
+}
+
 export function VenueMapPicker({
   visible,
   venueName,
@@ -31,41 +53,34 @@ export function VenueMapPicker({
   onClose,
   onConfirm,
 }: VenueMapPickerProps) {
-  const [point, setPoint] = useState<GeoPoint | null>(
-    initial
-      ? { latitude: initial.latitude, longitude: initial.longitude }
-      : null,
-  )
+  const mapRef = useRef<MapView>(null)
+  const starting = savedPoint(initial)
+  const [mapReady, setMapReady] = useState(false)
+  const [point, setPoint] = useState<GeoPoint | null>(starting)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [region, setRegion] = useState<Region | null>(
-    initial
-      ? {
-          latitude: initial.latitude,
-          longitude: initial.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }
-      : null,
+    starting ? regionFor(starting) : null,
   )
 
   useEffect(() => {
-    if (!visible) return
+    if (!visible) {
+      setMapReady(false)
+      return
+    }
+    const saved = savedPoint(initial)
+    if (saved) {
+      const next = regionFor(saved)
+      setPoint(saved)
+      setRegion(next)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
 
     async function locate() {
-      if (initial) {
-        setPoint({ latitude: initial.latitude, longitude: initial.longitude })
-        setRegion({
-          latitude: initial.latitude,
-          longitude: initial.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        })
-        setError(null)
-        return
-      }
-
       const query = [venueName, address].filter((part) => part.trim()).join(', ')
       if (!query) {
         setError('Escribe el nombre del lugar o la dirección para ubicar el mapa')
@@ -87,13 +102,10 @@ export function VenueMapPicker({
           setRegion(null)
           return
         }
+        const next = regionFor(found, found.approximate ? 0.04 : 0.01)
         setPoint(found)
-        setRegion({
-          latitude: found.latitude,
-          longitude: found.longitude,
-          latitudeDelta: found.approximate ? 0.04 : 0.01,
-          longitudeDelta: found.approximate ? 0.04 : 0.01,
-        })
+        setRegion(next)
+        mapRef.current?.animateToRegion(next, 300)
         if (found.approximate) {
           setError(
             `Ubicación aproximada${found.label ? ` (${found.label.split(',').slice(0, 2).join(',').trim()})` : ''}. Arrastra el pin al punto exacto.`,
@@ -120,7 +132,12 @@ export function VenueMapPicker({
   }, [visible, venueName, address, initial?.latitude, initial?.longitude])
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      onShow={() => setMapReady(true)}
+    >
       <SafeAreaView className="flex-1 bg-paper">
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8 }}>
           <ScreenHeader
@@ -146,13 +163,13 @@ export function VenueMapPicker({
               minHeight: 280,
             }}
           >
-            {loading || !region ? (
+            {loading || !region || !mapReady ? (
               <View className="flex-1 items-center justify-center">
-                {loading ? (
+                {loading || (region && !mapReady) ? (
                   <>
                     <ActivityIndicator color="#4334d6" />
                     <Text style={[typography.body, { marginTop: 10 }]}>
-                      Buscando dirección…
+                      {loading ? 'Buscando dirección…' : 'Abriendo mapa…'}
                     </Text>
                   </>
                 ) : (
@@ -163,9 +180,12 @@ export function VenueMapPicker({
               </View>
             ) : (
               <MapView
-                key={`${region.latitude.toFixed(5)}-${region.longitude.toFixed(5)}`}
-                style={{ flex: 1 }}
+                ref={mapRef}
+                style={StyleSheet.absoluteFill}
                 initialRegion={region}
+                onMapReady={() => {
+                  mapRef.current?.animateToRegion(region, 1)
+                }}
                 onPress={(event) => {
                   const { latitude, longitude } = event.nativeEvent.coordinate
                   setPoint({ latitude, longitude })

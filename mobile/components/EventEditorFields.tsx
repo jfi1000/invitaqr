@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Image, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { DateTimeField } from './DateTimeField'
 import { VenueMapPicker } from './VenueMapPicker'
@@ -58,8 +58,13 @@ export function EventEditorFields({
   paying = null,
 }: EventEditorFieldsProps) {
   const [mapOpen, setMapOpen] = useState(false)
-  const pinReady =
-    typeof values.latitude === 'number' && typeof values.longitude === 'number'
+  const pin = useMemo(() => {
+    const latitude = Number(values.latitude)
+    const longitude = Number(values.longitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+    return { latitude, longitude }
+  }, [values.latitude, values.longitude])
+  const pinReady = pin !== null
 
   async function pickLogo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -108,14 +113,12 @@ export function EventEditorFields({
         placeholder="Av. Reforma 120, Xalapa"
         placeholderTextColor="#8d86a6"
         value={values.location}
-        onChangeText={(location) =>
-          onChange({ location, latitude: null, longitude: null })
-        }
+        onChangeText={(location) => onChange({ location })}
       />
       <View className="mt-3 rounded-3xl border border-line bg-mist/70 px-4 py-3">
         <Text className="text-sm text-mute" style={{ fontFamily: 'Inter_500Medium' }}>
-          {pinReady
-            ? `Pin listo · ${values.latitude!.toFixed(5)}, ${values.longitude!.toFixed(5)}`
+          {pin
+            ? `Pin listo · ${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}`
             : 'Aún no hay pin. Ubica el mapa para marcar el punto exacto.'}
         </Text>
         <AppButton
@@ -137,11 +140,7 @@ export function EventEditorFields({
         visible={mapOpen}
         venueName={values.venueName}
         address={values.location}
-        initial={
-          pinReady
-            ? { latitude: values.latitude!, longitude: values.longitude! }
-            : null
-        }
+        initial={pin}
         onClose={() => setMapOpen(false)}
         onConfirm={(point) => {
           onChange({
