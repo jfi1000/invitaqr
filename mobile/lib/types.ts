@@ -13,7 +13,7 @@ export interface Session {
   user: AuthUser
 }
 
-export type EventStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'CANCELLED'
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED' | 'CANCELLED'
 export type EventPlan = 'FREE' | 'BASIC' | 'PRO'
 export type EventType = 'social' | 'corporate' | 'educational' | 'entertainment'
 export type RsvpStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'WAITLIST'

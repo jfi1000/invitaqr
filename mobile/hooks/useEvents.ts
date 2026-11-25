@@ -36,7 +36,10 @@ export function useCreateEvent() {
 export function useChangeEventStatus(id: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (status: PlannerEvent['status']) => changeEventStatus(id, status),
+    mutationFn: (input: {
+      status: PlannerEvent['status']
+      notifyGuests?: boolean
+    }) => changeEventStatus(id, input.status, input.notifyGuests),
     onSuccess: (event) => {
       client.setQueryData(queryKeys.event(id), event)
       void client.invalidateQueries({ queryKey: queryKeys.events })

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGlobalSearchParams, useLocalSearchParams, useRouter, useSegments } from 'expo-router'
 import { useState } from 'react'
-import { Image, Linking, Text, View } from 'react-native'
+import { Image, Linking, Modal, Switch, Text, View } from 'react-native'
 import {
   buildEventPayload,
   emptyEventEditorValues,
@@ -56,6 +56,8 @@ export default function EventDetailScreen() {
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState<EventEditorValues>(emptyEventEditorValues())
   const [formError, setFormError] = useState<string | null>(null)
+  const [suspendOpen, setSuspendOpen] = useState(false)
+  const [notifyGuests, setNotifyGuests] = useState(true)
 
   const save = useMutation({
     mutationFn: () => {
@@ -241,15 +243,35 @@ export default function EventDetailScreen() {
             </Text>
           </View>
 
-          {event.status === 'DRAFT' ? (
+          {event.status === 'ACTIVE' ? (
             <AppButton
               className="mt-5"
-              label={changeStatus.isPending ? 'Activando…' : 'Activar evento'}
-              loading={changeStatus.isPending}
-              onPress={() => changeStatus.mutate('ACTIVE')}
+              label="Suspender evento"
+              variant="ghost"
+              onPress={() => {
+                setNotifyGuests(true)
+                setSuspendOpen(true)
+              }}
             />
           ) : null}
-          {changeStatus.isError ? (
+          {event.status === 'SUSPENDED' ? (
+            <View className="mt-5 rounded-[28px] border border-amber-200 bg-amber-50 px-5 py-4">
+              <StatusBadge value="SUSPENDED" />
+              <Text
+                className="mt-3 text-sm text-amber-900"
+                style={{ fontFamily: 'Inter_500Medium' }}
+              >
+                Este evento está suspendido. Reactívalo para que los invitados puedan confirmar y entrar.
+              </Text>
+              <AppButton
+                className="mt-4"
+                label={changeStatus.isPending ? 'Reactivando…' : 'Reactivar evento'}
+                loading={changeStatus.isPending}
+                onPress={() => changeStatus.mutate({ status: 'ACTIVE' })}
+              />
+            </View>
+          ) : null}
+          {changeStatus.isError && !suspendOpen ? (
             <Text className="mt-3 text-base text-red-700">{apiErrorMessage(changeStatus.error)}</Text>
           ) : null}
 
@@ -294,6 +316,69 @@ export default function EventDetailScreen() {
           ) : null}
         </View>
       ) : null}
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={suspendOpen}
+        onRequestClose={() => {
+          if (!changeStatus.isPending) setSuspendOpen(false)
+        }}
+      >
+        <View className="flex-1 items-center justify-center bg-black/40 px-6">
+          <View className="w-full rounded-[28px] bg-white px-5 py-5">
+            <Text
+              className="text-xl text-inkwell"
+              style={{ fontFamily: 'Inter_700Bold' }}
+            >
+              Suspender evento
+            </Text>
+            <Text
+              className="mt-2 text-base text-mute"
+              style={{ fontFamily: 'Inter_500Medium' }}
+            >
+              Mientras esté suspendido no se validan pases ni confirmaciones.
+            </Text>
+            <View className="mt-4 flex-row items-center justify-between gap-3">
+              <Text
+                className="flex-1 text-base text-inkwell"
+                style={{ fontFamily: 'Inter_500Medium' }}
+              >
+                Avisar a invitados confirmados por email
+              </Text>
+              <Switch
+                value={notifyGuests}
+                onValueChange={setNotifyGuests}
+                trackColor={{ false: '#e6e2f2', true: '#4334d6' }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            {changeStatus.isError ? (
+              <Text className="mt-3 text-sm text-red-700">
+                {apiErrorMessage(changeStatus.error)}
+              </Text>
+            ) : null}
+            <AppButton
+              className="mt-5"
+              label={changeStatus.isPending ? 'Suspendiendo…' : 'Suspender'}
+              loading={changeStatus.isPending}
+              onPress={() =>
+                changeStatus.mutate(
+                  { status: 'SUSPENDED', notifyGuests },
+                  { onSuccess: () => setSuspendOpen(false) },
+                )
+              }
+            />
+            <AppButton
+              className="mt-2"
+              label="Cancelar"
+              variant="ghost"
+              disabled={changeStatus.isPending}
+              onPress={() => setSuspendOpen(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   )
 }

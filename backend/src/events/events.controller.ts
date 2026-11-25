@@ -8,21 +8,14 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthUser } from '../auth/token-payload';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ChangeEventStatusDto } from './dto/change-event-status.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { EventStatus } from './event-status.enum';
 import { EventsService } from './events.service';
-
-class ChangeEventStatusDto {
-  @ApiProperty({ enum: EventStatus })
-  @IsEnum(EventStatus)
-  status: EventStatus;
-}
 
 @ApiTags('events')
 @ApiBearerAuth()
@@ -64,6 +57,11 @@ export class EventsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ChangeEventStatusDto,
   ) {
-    return this.eventsService.changeStatus(user, id, dto.status);
+    return this.eventsService.changeStatus(
+      user,
+      id,
+      dto.status,
+      dto.notifyGuests,
+    );
   }
 }

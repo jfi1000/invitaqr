@@ -4,6 +4,7 @@ import type { EventStatus, RsvpStatus } from '../lib/types'
 const LABELS: Record<string, string> = {
   DRAFT: 'Borrador',
   ACTIVE: 'Activo',
+  SUSPENDED: 'Suspendido',
   CLOSED: 'Cerrado',
   CANCELLED: 'Cancelado',
   PENDING: 'Pendiente',
@@ -26,6 +27,7 @@ const LABELS: Record<string, string> = {
 const TONES: Record<string, { box: string; text: string }> = {
   DRAFT: { box: 'bg-stone-100', text: 'text-stone-700' },
   ACTIVE: { box: 'bg-emerald-100', text: 'text-emerald-800' },
+  SUSPENDED: { box: 'bg-amber-100', text: 'text-amber-800' },
   CLOSED: { box: 'bg-stone-200', text: 'text-stone-700' },
   CANCELLED: { box: 'bg-red-100', text: 'text-red-700' },
   PENDING: { box: 'bg-amber-100', text: 'text-amber-800' },

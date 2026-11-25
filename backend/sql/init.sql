@@ -32,7 +32,7 @@ CREATE TABLE events (
   rsvp_deadline           TIMESTAMPTZ,
   plan                    VARCHAR(20)   DEFAULT 'FREE' CHECK (plan IN ('FREE','BASIC','PRO')),
   status                  VARCHAR(20)   DEFAULT 'DRAFT'
-                          CHECK (status IN ('DRAFT','ACTIVE','CLOSED','CANCELLED')),
+                          CHECK (status IN ('DRAFT','ACTIVE','SUSPENDED','CLOSED','CANCELLED')),
   type                    VARCHAR(30)   NOT NULL DEFAULT 'social'
                           CHECK (type IN ('social','corporate','educational','entertainment')),
   has_tables              BOOLEAN       NOT NULL DEFAULT FALSE,

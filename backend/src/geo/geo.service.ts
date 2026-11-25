@@ -88,6 +88,10 @@ export class GeoService {
     if (input.venue && input.address) {
       push(`${input.venue}, ${input.address}`);
     }
+    if (input.address?.includes(',')) {
+      const tail = input.address.split(',').slice(-2).join(',').trim();
+      push(tail);
+    }
     push(input.venue);
     return out;
   }

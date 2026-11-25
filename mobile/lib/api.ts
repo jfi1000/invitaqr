@@ -141,8 +141,12 @@ export async function updateEvent(
 export async function changeEventStatus(
   id: string,
   status: PlannerEvent['status'],
+  notifyGuests?: boolean,
 ): Promise<PlannerEvent> {
-  const response = await api.patch<{ data: PlannerEvent }>(`/events/${id}/status`, { status })
+  const response = await api.patch<{ data: PlannerEvent }>(`/events/${id}/status`, {
+    status,
+    ...(notifyGuests === undefined ? {} : { notifyGuests }),
+  })
   return unwrap(response.data)
 }
 

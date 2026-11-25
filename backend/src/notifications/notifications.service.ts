@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
+import { Repository } from 'typeorm';
 import { Event } from '../events/event.entity';
 import { EventPlan } from '../events/event-plan.enum';
 import { Guest } from '../guests/guest.entity';
 import { Pass } from '../guests/pass.entity';
+import { PassRsvpStatus } from '../guests/pass-rsvp-status.enum';
+import { eventSuspendedTemplate } from './templates/event-suspended.template';
 import { rsvpConfirmedTemplate } from './templates/rsvp-confirmed.template';
 import { rsvpDeclinedTemplate } from './templates/rsvp-declined.template';
 import { rsvpInviteTemplate } from './templates/rsvp-invite.template';
@@ -19,7 +23,57 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private transporter: nodemailer.Transporter | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @InjectRepository(Event)
+    private readonly events: Repository<Event>,
+    @InjectRepository(Pass)
+    private readonly passes: Repository<Pass>,
+    @InjectRepository(Guest)
+    private readonly guests: Repository<Guest>,
+  ) {}
+
+  async sendSuspensionNotice(eventId: string): Promise<void> {
+    const event = await this.events.findOne({ where: { id: eventId } });
+    if (!event) {
+      this.logger.warn(`Aviso de suspensión omitido: evento ${eventId} no existe`);
+      return;
+    }
+
+    const passes = await this.passes.find({
+      where: { eventId, rsvpStatus: PassRsvpStatus.CONFIRMED },
+    });
+
+    for (const pass of passes) {
+      const guest = await this.guests.findOne({ where: { id: pass.guestId } });
+      if (!guest?.email?.trim()) {
+        continue;
+      }
+      try {
+        await this.sendEmail(
+          guest.email,
+          `Evento suspendido — ${event.name}`,
+          eventSuspendedTemplate({
+            guestName: guest.name,
+            eventName: event.name,
+          }),
+          [
+            `Hola ${guest.name},`,
+            '',
+            `${event.name} quedó suspendido de forma temporal.`,
+            'Te avisaremos cuando el evento se reactive.',
+            '',
+            '— InvitaQR',
+          ].join('\n'),
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `No se pudo avisar la suspensión a ${guest.email}: ${detail}`,
+        );
+      }
+    }
+  }
 
   async sendRsvpInvite(guest: Guest, pass: Pass, event: Event): Promise<void> {
     const url = this.rsvpUrl(pass.rsvpToken);

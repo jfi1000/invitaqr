@@ -51,21 +51,26 @@ export function VenueMapPicker({
 
   useEffect(() => {
     if (!visible) return
+
+    if (
+      typeof initial?.latitude === 'number' &&
+      typeof initial.longitude === 'number'
+    ) {
+      setPoint({ latitude: initial.latitude, longitude: initial.longitude })
+      setRegion({
+        latitude: initial.latitude,
+        longitude: initial.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      })
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
 
     async function locate() {
-      if (initial) {
-        setPoint({ latitude: initial.latitude, longitude: initial.longitude })
-        setRegion({
-          latitude: initial.latitude,
-          longitude: initial.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        })
-        setError(null)
-        return
-      }
-
       const query = [venueName, address].filter((part) => part.trim()).join(', ')
       if (!query) {
         setError('Escribe el nombre del lugar o la dirección para ubicar el mapa')

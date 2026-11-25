@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Image, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { DateTimeField } from './DateTimeField'
 import { VenueMapPicker } from './VenueMapPicker'
@@ -45,6 +45,13 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
   const [mapOpen, setMapOpen] = useState(false)
   const pinReady =
     typeof values.latitude === 'number' && typeof values.longitude === 'number'
+  const mapInitial = useMemo(
+    () =>
+      values.latitude != null && values.longitude != null
+        ? { latitude: values.latitude, longitude: values.longitude }
+        : null,
+    [values.latitude, values.longitude],
+  )
 
   async function pickLogo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -89,9 +96,12 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
       <FieldLabel>Ubicación / dirección</FieldLabel>
       <TextInput
         className={inputClass}
-        style={{ fontFamily: 'Inter_500Medium' }}
-        placeholder="Av. Reforma 120, Xalapa"
+        style={{ fontFamily: 'Inter_500Medium', minHeight: 56 }}
+        placeholder="Calle, número, colonia, ciudad, estado (ej. Av. Ávila Camacho 15, Centro, Xalapa, Ver.)"
         placeholderTextColor="#8d86a6"
+        multiline
+        numberOfLines={2}
+        textAlignVertical="top"
         value={values.location}
         onChangeText={(location) =>
           onChange({ location, latitude: null, longitude: null })
@@ -122,11 +132,7 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
         visible={mapOpen}
         venueName={values.venueName}
         address={values.location}
-        initial={
-          pinReady
-            ? { latitude: values.latitude!, longitude: values.longitude! }
-            : null
-        }
+        initial={mapInitial}
         onClose={() => setMapOpen(false)}
         onConfirm={(point) => {
           onChange({

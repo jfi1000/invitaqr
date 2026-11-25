@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AuthUser } from '../auth/token-payload';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole } from '../users/user-role.enum';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -23,7 +24,12 @@ const PLAN_CAPACITY: Record<EventPlan, number> = {
 
 const ALLOWED_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
   [EventStatus.DRAFT]: [EventStatus.ACTIVE, EventStatus.CANCELLED],
-  [EventStatus.ACTIVE]: [EventStatus.CLOSED, EventStatus.CANCELLED],
+  [EventStatus.ACTIVE]: [
+    EventStatus.SUSPENDED,
+    EventStatus.CLOSED,
+    EventStatus.CANCELLED,
+  ],
+  [EventStatus.SUSPENDED]: [EventStatus.ACTIVE, EventStatus.CANCELLED],
   [EventStatus.CLOSED]: [],
   [EventStatus.CANCELLED]: [],
 };
@@ -34,6 +40,7 @@ export class EventsService {
     @InjectRepository(Event)
     private readonly events: Repository<Event>,
     private readonly dataSource: DataSource,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(user: AuthUser, dto: CreateEventDto): Promise<Event> {
@@ -59,7 +66,7 @@ export class EventsService {
       capacity,
       rsvpDeadline: dto.rsvp_deadline ? new Date(dto.rsvp_deadline) : null,
       plan,
-      status: EventStatus.DRAFT,
+      status: EventStatus.ACTIVE,
       ...extras,
       logo: this.normalizeLogo(dto.logo),
     });
@@ -185,6 +192,7 @@ export class EventsService {
     user: AuthUser,
     id: string,
     status: EventStatus,
+    notifyGuests = false,
   ): Promise<Event> {
     this.assertCanManage(user);
     const event = await this.requireAccessible(user, id);
@@ -195,11 +203,12 @@ export class EventsService {
         message: 'Esa transición de estado no está permitida',
       });
     }
-    if (status === EventStatus.ACTIVE) {
-      await this.assertPlanPaid(event);
-    }
     event.status = status;
-    return this.events.save(event);
+    const saved = await this.events.save(event);
+    if (status === EventStatus.SUSPENDED && notifyGuests) {
+      await this.notifications.sendSuspensionNotice(saved.id);
+    }
+    return saved;
   }
 
   private assertCanManage(user: AuthUser): void {
@@ -236,22 +245,6 @@ export class EventsService {
       throw new BadRequestException({
         error: 'VALIDATION_ERROR',
         message: 'La fecha de fin no puede ser anterior a la de inicio',
-      });
-    }
-  }
-
-  private async assertPlanPaid(event: Event): Promise<void> {
-    if (event.plan === EventPlan.FREE) {
-      return;
-    }
-    const rows: unknown[] = await this.dataSource.query(
-      `SELECT 1 FROM payments WHERE event_id = $1 AND plan = $2 AND status = 'PAID' LIMIT 1`,
-      [event.id, event.plan],
-    );
-    if (rows.length === 0) {
-      throw new BadRequestException({
-        error: 'PLAN_NOT_PAID',
-        message: 'El plan debe estar pagado antes de activar el evento',
       });
     }
   }

@@ -56,6 +56,23 @@ export class BillingService {
       });
     }
 
+    const existingPending = await this.payments.findOne({
+      where: { eventId: event.id, plan, status: PaymentStatus.PENDING },
+    });
+    if (existingPending) {
+      try {
+        const existing = await this.stripe().checkout.sessions.retrieve(
+          existingPending.stripeSessionId!,
+        );
+        if (existing.status === 'open' && existing.url) {
+          return { url: existing.url };
+        }
+      } catch {
+        // sesión expirada o inválida, continuar a crear una nueva
+      }
+      await this.payments.delete(existingPending.id);
+    }
+
     const appUrl = (
       this.config.get<string>('APP_URL') || 'http://localhost:3000'
     ).replace(/\/$/, '');
@@ -200,10 +217,13 @@ export class BillingService {
         message: 'Evento no encontrado',
       });
     }
-    if (event.status !== EventStatus.DRAFT) {
+    if (
+      event.status !== EventStatus.DRAFT &&
+      event.status !== EventStatus.ACTIVE
+    ) {
       throw new BadRequestException({
-        error: 'EVENT_NOT_DRAFT',
-        message: 'Solo se puede pagar un evento en borrador',
+        error: 'EVENT_NOT_PAYABLE',
+        message: 'Solo se puede pagar un evento activo o en borrador',
       });
     }
     return event;
