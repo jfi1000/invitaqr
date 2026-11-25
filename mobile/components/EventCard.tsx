@@ -47,12 +47,13 @@ function Metric({
 
 export function EventCard({ event, onPress }: EventCardProps) {
   const invited = event.guestCount ?? 0
-  const confirmed = event.confirmedCount ?? 0
+  const companions = event.companionCount ?? 0
+  const people = invited + companions
+  const confirmedPeople =
+    (event.confirmedCount ?? 0) + (event.confirmedCompanionCount ?? 0)
   const capacity = event.capacity || 0
-  const invitedPct =
-    capacity > 0 ? Math.min(100, Math.round((invited / capacity) * 100)) : 0
-  const confirmedPct =
-    invited > 0 ? Math.round((confirmed / invited) * 100) : 0
+  const peoplePct =
+    capacity > 0 ? Math.min(100, Math.round((people / capacity) * 100)) : 0
 
   return (
     <Pressable
@@ -91,24 +92,25 @@ export function EventCard({ event, onPress }: EventCardProps) {
         <View className="flex-row items-stretch">
           <Metric value={String(invited)} label="Invitados" />
           <View style={{ width: 1, backgroundColor: '#e6e2f2', marginVertical: 10 }} />
-          <Metric
-            value={String(confirmed)}
-            label="Confirmados"
-            hint={invited > 0 ? `${confirmedPct}%` : undefined}
-          />
+          <Metric value={String(companions)} label="Acompañantes" />
         </View>
         {capacity > 0 ? (
           <View className="border-t border-line px-3 py-2.5">
             <View className="mb-1.5 flex-row items-center justify-between">
-              <Text style={typography.caption}>Cupo del plan · {capacity}</Text>
-              <Text style={[typography.caption, { color: '#4334d6' }]}>{invitedPct}%</Text>
+              <Text style={typography.caption}>
+                Personas · {people} de {capacity}
+              </Text>
+              <Text style={[typography.caption, { color: '#4334d6' }]}>{peoplePct}%</Text>
             </View>
             <View className="h-1.5 overflow-hidden rounded-full bg-white">
               <View
                 className="h-1.5 rounded-full bg-indigo"
-                style={{ width: `${invitedPct}%` }}
+                style={{ width: `${peoplePct}%` }}
               />
             </View>
+            <Text style={[typography.caption, { marginTop: 6 }]}>
+              Confirmados · {confirmedPeople} personas
+            </Text>
           </View>
         ) : null}
       </View>

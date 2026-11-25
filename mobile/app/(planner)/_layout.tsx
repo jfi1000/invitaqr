@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 
+function tabIconColor(color: unknown): string {
+  return typeof color === 'string' ? color : '#8d86a6'
+}
+
 export default function PlannerLayout() {
   return (
     <Tabs
@@ -27,7 +31,7 @@ export default function PlannerLayout() {
         options={{
           title: 'Eventos',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="calendar-outline" size={size} color={tabIconColor(color)} />
           ),
         }}
       />
@@ -36,11 +40,28 @@ export default function PlannerLayout() {
         options={{
           title: 'Perfil',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <Ionicons name="person-outline" size={size} color={tabIconColor(color)} />
           ),
         }}
       />
-      <Tabs.Screen name="events" options={{ href: null }} />
+      <Tabs.Screen
+        name="billing"
+        options={{
+          title: 'Facturación',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
+        }}
+      />
+      <Tabs.Screen
+        name="events"
+        options={{
+          title: 'Evento',
+          // href: null marks the route hidden and SDK 58 immediately
+          // redirects back to the first tab, so the event screen never opens.
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
+        }}
+      />
     </Tabs>
   )
 }

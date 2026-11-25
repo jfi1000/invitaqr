@@ -12,12 +12,15 @@ import { StatusBadge } from '../../../../components/StatusBadge'
 import { AppButton } from '../../../../components/ui/AppButton'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { EventDetailSkeleton } from '../../../../components/ui/screen-skeletons'
 import { useChangeEventStatus, useEvent } from '../../../../hooks/useEvents'
-import { apiErrorMessage, updateEvent } from '../../../../lib/api'
+import { apiErrorMessage, createCheckout, updateEvent } from '../../../../lib/api'
+import { openStripeCheckout } from '../../../../lib/checkout'
 import { eventLogo } from '../../../../lib/brand'
 import { fromIsoLocal, formatWhen, toIso } from '../../../../lib/format'
 import { backToEventList } from '../../../../lib/navigation'
 import { queryKeys } from '../../../../lib/query'
+import { type as typography } from '../../../../lib/typography'
 import { SCAN_EARLY_MINUTES, scanOpensAt } from '../../../../lib/scan-window'
 import { mapsUrl } from '../../../../lib/venue'
 
@@ -56,9 +59,26 @@ export default function EventDetailScreen() {
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState<EventEditorValues>(emptyEventEditorValues())
   const [formError, setFormError] = useState<string | null>(null)
+  const [paying, setPaying] = useState<'BASIC' | 'PRO' | null>(null)
+
+  async function pay(plan: 'BASIC' | 'PRO') {
+    if (!id || paying) return
+    setPaying(plan)
+    setFormError(null)
+    try {
+      const session = await createCheckout(id, plan)
+      await openStripeCheckout(session.url)
+    } catch (caught) {
+      setFormError(apiErrorMessage(caught))
+      setPaying(null)
+    }
+  }
 
   const save = useMutation({
     mutationFn: () => {
+      if (!event) {
+        throw new Error('No encontramos este evento')
+      }
       if (!values.name.trim()) {
         throw new Error('Escribe el nombre del evento')
       }
@@ -66,7 +86,10 @@ export default function EventDetailScreen() {
       if (!startsAt) {
         throw new Error('Elige la fecha y hora de inicio')
       }
-      if (new Date(startsAt).getTime() < Date.now()) {
+      const originalStart = new Date(event.startsAt).getTime()
+      const nextStart = new Date(startsAt).getTime()
+      const startMoved = Math.abs(nextStart - originalStart) > 60_000
+      if (startMoved && nextStart < Date.now()) {
         throw new Error('La fecha de inicio no puede estar en el pasado')
       }
       const endsAt = values.ends.trim() ? toIso(values.ends) : startsAt
@@ -137,9 +160,7 @@ export default function EventDetailScreen() {
         onBack={() => backToEventList(router)}
       />
       {!id ? <Text className="mt-4 text-base text-red-700">No encontramos este evento.</Text> : null}
-      {id && eventQuery.isPending ? (
-        <Text className="mt-4 text-base text-mute">Cargando…</Text>
-      ) : null}
+      {id && eventQuery.isPending ? <EventDetailSkeleton /> : null}
       {eventQuery.isError ? (
         <Text className="mt-4 text-base text-red-700">{apiErrorMessage(eventQuery.error)}</Text>
       ) : null}
@@ -241,13 +262,63 @@ export default function EventDetailScreen() {
             </Text>
           </View>
 
+          {event.paidPlan === 'BASIC' || event.paidPlan === 'PRO' ? (
+            <View className="mt-5 items-center rounded-[28px] border border-line bg-card px-5 py-6">
+              <Text style={typography.label}>PAQUETE</Text>
+              <Text className="mt-2 text-center text-indigo" style={typography.display}>
+                {event.paidPlan}
+              </Text>
+              <Text
+                className="mt-2 text-center text-inkwell"
+                style={{ fontFamily: 'Inter_500Medium', fontSize: 16, lineHeight: 22 }}
+              >
+                {event.paidPlan === 'PRO'
+                  ? 'Este evento ya tiene el paquete PRO, hasta 500 personas.'
+                  : 'Este evento ya tiene el paquete BASIC, hasta 150 personas.'}
+              </Text>
+            </View>
+          ) : null}
+
           {event.status === 'DRAFT' ? (
-            <AppButton
-              className="mt-5"
-              label={changeStatus.isPending ? 'Activando…' : 'Activar evento'}
-              loading={changeStatus.isPending}
-              onPress={() => changeStatus.mutate('ACTIVE')}
-            />
+            <View className="mt-5 gap-3">
+              {event.paidPlan === 'PRO' ? null : event.paidPlan === 'BASIC' ? (
+                <AppButton
+                  label={paying === 'PRO' ? 'Abriendo pago…' : 'Subir a PRO $599'}
+                  loading={paying === 'PRO'}
+                  disabled={paying !== null}
+                  onPress={() => void pay('PRO')}
+                />
+              ) : (
+                <>
+                  <Text className="text-center text-sm text-mute" style={{ fontFamily: 'Inter_500Medium' }}>
+                    FREE se activa sin pago. BASIC ($299) y PRO ($599) se cobran una vez.
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    <AppButton
+                      className="flex-1"
+                      label={paying === 'BASIC' ? 'Abriendo pago…' : 'BASIC $299'}
+                      loading={paying === 'BASIC'}
+                      disabled={paying !== null}
+                      onPress={() => void pay('BASIC')}
+                    />
+                    <AppButton
+                      className="flex-1"
+                      label={paying === 'PRO' ? 'Abriendo pago…' : 'PRO $599'}
+                      loading={paying === 'PRO'}
+                      disabled={paying !== null}
+                      onPress={() => void pay('PRO')}
+                    />
+                  </View>
+                </>
+              )}
+              <AppButton
+                label={changeStatus.isPending ? 'Activando…' : 'Activar evento'}
+                loading={changeStatus.isPending}
+                variant={event.paidPlan ? 'secondary' : 'primary'}
+                onPress={() => changeStatus.mutate('ACTIVE')}
+              />
+              {formError ? <Text className="text-center text-base text-red-700">{formError}</Text> : null}
+            </View>
           ) : null}
           {changeStatus.isError ? (
             <Text className="mt-3 text-base text-red-700">{apiErrorMessage(changeStatus.error)}</Text>
@@ -280,6 +351,13 @@ export default function EventDetailScreen() {
                 Editar evento
               </Text>
               <EventEditorFields
+                allowPast
+                paying={paying}
+                onPay={(plan) => {
+                  if (event.paidPlan === 'PRO') return
+                  if (event.paidPlan === 'BASIC' && plan !== 'PRO') return
+                  void pay(plan)
+                }}
                 values={values}
                 onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
               />

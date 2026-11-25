@@ -257,7 +257,10 @@ export class StaffService {
   }
 
   async setPassword(inviteToken: string, password: string): Promise<{ success: true }> {
-    const invite = await this.staffInvites.findOne({ where: { inviteToken } });
+    const token = inviteToken?.trim();
+    const invite = token
+      ? await this.staffInvites.findOne({ where: { inviteToken: token } })
+      : null;
     if (!invite) {
       throw new BadRequestException({
         error: 'INVALID_INVITE',

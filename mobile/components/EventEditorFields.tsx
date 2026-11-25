@@ -8,7 +8,11 @@ import { AppButton } from './ui/AppButton'
 import { eventLogo } from '../lib/brand'
 import type { EventPlan, EventType } from '../lib/types'
 
-const PLANS: EventPlan[] = ['FREE', 'BASIC', 'PRO']
+const PLANS: { value: EventPlan; label: string }[] = [
+  { value: 'FREE', label: 'FREE' },
+  { value: 'BASIC', label: 'BASIC $299' },
+  { value: 'PRO', label: 'PRO $599' },
+]
 const TYPES: { value: EventType; label: string }[] = [
   { value: 'social', label: 'Social' },
   { value: 'corporate', label: 'Corporativo' },
@@ -36,12 +40,23 @@ export interface EventEditorValues {
 interface EventEditorFieldsProps {
   values: EventEditorValues
   onChange: (patch: Partial<EventEditorValues>) => void
+  /** Editing keeps the original start even when it is already in the past. */
+  allowPast?: boolean
+  /** BASIC y PRO abren la pasarela. FREE solo selecciona el plan. */
+  onPay?: (plan: 'BASIC' | 'PRO') => void
+  paying?: 'BASIC' | 'PRO' | null
 }
 
 const inputClass =
   'rounded-2xl border border-line bg-white px-4 py-4 text-base text-inkwell'
 
-export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) {
+export function EventEditorFields({
+  values,
+  onChange,
+  allowPast = false,
+  onPay,
+  paying = null,
+}: EventEditorFieldsProps) {
   const [mapOpen, setMapOpen] = useState(false)
   const pinReady =
     typeof values.latitude === 'number' && typeof values.longitude === 'number'
@@ -52,7 +67,7 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
       return
     }
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.7,
       base64: true,
       allowsEditing: true,
@@ -214,13 +229,19 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
           ) : null}
         </View>
       ) : null}
-      <DateTimeField label="Inicio" value={values.starts} onChange={(starts) => onChange({ starts })} />
+      <DateTimeField
+        label="Inicio"
+        value={values.starts}
+        onChange={(starts) => onChange({ starts })}
+        minimumDate={allowPast ? null : undefined}
+      />
       <DateTimeField
         label="Fin"
         value={values.ends}
         onChange={(ends) => onChange({ ends })}
         optional
         hint="Si es un solo día, deja el fin vacío."
+        minimumDate={allowPast ? null : undefined}
       />
       <FieldLabel>Logo del evento</FieldLabel>
       <View className="flex-row items-center gap-4">
@@ -242,25 +263,35 @@ export function EventEditorFields({ values, onChange }: EventEditorFieldsProps) 
         </View>
       </View>
       <FieldLabel>Plan</FieldLabel>
-      <View className="flex-row gap-2">
+      <View className="flex-row flex-wrap gap-2">
         {PLANS.map((item) => {
-          const active = values.plan === item
+          const active = values.plan === item.value
+          const busy = paying === item.value
           return (
             <Pressable
-              key={item}
-              className={`rounded-full px-4 py-2.5 ${active ? 'bg-inkwell' : 'border border-line bg-white'}`}
-              onPress={() => onChange({ plan: item })}
+              key={item.value}
+              disabled={paying !== null}
+              className={`rounded-full px-4 py-2.5 ${active ? 'bg-inkwell' : 'border border-line bg-white'} ${paying && !busy ? 'opacity-50' : ''}`}
+              onPress={() => {
+                onChange({ plan: item.value })
+                if (item.value === 'BASIC' || item.value === 'PRO') {
+                  onPay?.(item.value)
+                }
+              }}
             >
               <Text
                 className={active ? 'text-white' : 'text-inkwell'}
                 style={{ fontFamily: 'Inter_600SemiBold' }}
               >
-                {item}
+                {busy ? 'Abriendo pago…' : item.label}
               </Text>
             </Pressable>
           )
         })}
       </View>
+      <Text className="mt-2 text-sm text-mute">
+        FREE no se paga. BASIC y PRO se cobran una vez por evento.
+      </Text>
     </View>
   )
 }
@@ -312,6 +343,6 @@ export function buildEventPayload(values: EventEditorValues) {
         ? values.zones.trim() || undefined
         : undefined,
     logo: values.logo,
-    capacity: values.plan === 'FREE' ? 50 : 100,
+    capacity: values.plan === 'FREE' ? 50 : values.plan === 'BASIC' ? 150 : 500,
   }
 }

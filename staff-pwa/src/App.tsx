@@ -20,7 +20,8 @@ function readPath(): string {
 
 function readInviteToken(): string | null {
   if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get('token')
+  const token = new URLSearchParams(window.location.search).get('token')?.trim()
+  return token || null
 }
 
 function readEventMeta(): StaffEventSummary | null {
@@ -89,6 +90,13 @@ export function App() {
     setNotice(undefined)
   }
 
+  function rememberEvent(summary: StaffEventSummary) {
+    localStorage.setItem(EVENT_KEY, summary.id)
+    localStorage.setItem(EVENT_META_KEY, JSON.stringify(summary))
+    setEventId(summary.id)
+    setEventMeta(summary)
+  }
+
   function leave(message?: string) {
     clearSessionTokens()
     localStorage.removeItem(EVENT_KEY)
@@ -121,6 +129,7 @@ export function App() {
       event={eventMeta}
       onLogout={() => leave()}
       onSessionExpired={() => leave('La sesión expiró. Vuelve a entrar')}
+      onEvent={rememberEvent}
     />
   )
 }

@@ -14,4 +14,5 @@ export const queryKeys = {
   guests: (id: string) => ['events', id, 'guests'] as const,
   staff: (id: string) => ['events', id, 'staff'] as const,
   me: ['me'] as const,
+  purchases: ['billing', 'purchases'] as const,
 }

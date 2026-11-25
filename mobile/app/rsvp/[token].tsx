@@ -1,16 +1,9 @@
 import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
-import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { Image, Linking, Pressable, Text, TextInput, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import { AppButton } from '../../components/ui/AppButton'
+import { RsvpSkeleton } from '../../components/ui/screen-skeletons'
 import { Screen } from '../../components/ui/Screen'
 import { apiErrorMessage, confirmRsvp, declineRsvp, getRsvp } from '../../lib/api'
 import { eventLogo } from '../../lib/brand'
@@ -100,10 +93,7 @@ export default function PublicRsvpScreen() {
   if (loading) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#4334d6" />
-          <Text style={[typography.body, { marginTop: 12 }]}>Cargando invitación…</Text>
-        </View>
+        <RsvpSkeleton />
       </Screen>
     )
   }

@@ -1,21 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  Share,
-  Text,
-  View,
-} from 'react-native'
+import { FlatList, Image, Modal, Share, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { GuestItem } from '../../../../components/GuestItem'
 import { StatusBadge } from '../../../../components/StatusBadge'
 import { AppButton } from '../../../../components/ui/AppButton'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { PassListSkeleton, QrSkeleton } from '../../../../components/ui/screen-skeletons'
 import {
   apiErrorMessage,
   ensurePasses,
@@ -139,13 +132,14 @@ export default function PassesScreen() {
         />
       ) : null}
       <FlatList
+        style={{ flex: 1 }}
         className="mt-4"
         data={passes}
         keyExtractor={(item) => item.pass?.id ?? item.id}
         ListEmptyComponent={
           guests.isLoading ? (
-            <Text className="text-base text-mute">Cargando…</Text>
-          ) : allGuests.length === 0 ? null : (
+            <PassListSkeleton />
+          ) : allGuests.length === 0 ? undefined : (
             <Text className="mt-6 text-base text-mute">Todavía no hay pases.</Text>
           )
         }
@@ -209,7 +203,7 @@ export default function PassesScreen() {
               eyebrow="Invitado"
               onBack={() => setSelected(null)}
             />
-            {qrQuery.isLoading ? <ActivityIndicator className="mt-8" color="#4334d6" /> : null}
+            {qrQuery.isLoading ? <QrSkeleton /> : null}
             {qrQuery.isError ? (
               <Text className="mt-4 text-base text-red-700">{apiErrorMessage(qrQuery.error)}</Text>
             ) : null}

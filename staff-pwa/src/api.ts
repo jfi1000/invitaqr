@@ -2,11 +2,18 @@ import type { ScanResponse, Session, StaffEventSummary } from './types'
 
 export class ApiError extends Error {
   status: number
+  code?: string
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message)
+    this.name = 'ApiError'
     this.status = status
+    this.code = code
   }
+}
+
+export function isSessionAborted(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'STALE_SESSION'
 }
 
 const ACCESS_KEY = 'invitaqr_access_token'
@@ -16,6 +23,7 @@ type SessionListener = (accessToken: string | null) => void
 
 let sessionListener: SessionListener | null = null
 let refreshInFlight: Promise<string | null> | null = null
+let sessionEpoch = 0
 
 export function bindSessionListener(listener: SessionListener | null) {
   sessionListener = listener
@@ -26,23 +34,33 @@ export function readAccessToken(): string | null {
 }
 
 export function persistSessionTokens(accessToken: string, refreshToken: string) {
+  sessionEpoch += 1
   localStorage.setItem(ACCESS_KEY, accessToken)
   localStorage.setItem(REFRESH_KEY, refreshToken)
   sessionListener?.(accessToken)
 }
 
 export function clearSessionTokens() {
+  sessionEpoch += 1
   localStorage.removeItem(ACCESS_KEY)
   localStorage.removeItem(REFRESH_KEY)
   sessionListener?.(null)
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== ACCESS_KEY && event.key !== REFRESH_KEY && event.key !== null) {
+      return
+    }
+    sessionListener?.(localStorage.getItem(ACCESS_KEY))
+  })
+}
+
 function baseUrl(): string {
-  const url = import.meta.env.VITE_API_URL?.replace(/\/$/, '')
-  if (!url) {
-    throw new ApiError(0, 'Falta configurar VITE_API_URL')
-  }
-  return url
+  const configured = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '')
+  if (configured) return configured
+  if (import.meta.env.DEV) return '/api'
+  throw new ApiError(0, 'Falta configurar VITE_API_URL')
 }
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
@@ -54,11 +72,15 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   }
 
   const body = (await response.json().catch(() => null)) as
-    | { data?: T; message?: string }
+    | { data?: T; message?: string; error?: string }
     | null
 
-  if (!response.ok || !body?.data) {
-    throw new ApiError(response.status, body?.message ?? 'No se pudo completar la solicitud')
+  if (!response.ok || body?.data == null) {
+    throw new ApiError(
+      response.status,
+      body?.message ?? 'No se pudo completar la solicitud',
+      body?.error,
+    )
   }
 
   return body.data
@@ -67,10 +89,12 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight
 
-  refreshInFlight = (async () => {
-    const refreshToken = localStorage.getItem(REFRESH_KEY)
+  const epochAtStart = sessionEpoch
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+
+  const promise = (async () => {
     if (!refreshToken) {
-      clearSessionTokens()
+      if (sessionEpoch === epochAtStart) clearSessionTokens()
       return null
     }
     try {
@@ -79,17 +103,37 @@ async function refreshAccessToken(): Promise<string | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       })
+      const storedRefresh = localStorage.getItem(REFRESH_KEY)
+      if (sessionEpoch !== epochAtStart || storedRefresh !== refreshToken) {
+        if (sessionEpoch !== epochAtStart) {
+          throw new ApiError(0, 'La sesión cambió', 'STALE_SESSION')
+        }
+        return localStorage.getItem(ACCESS_KEY)
+      }
       persistSessionTokens(session.accessToken, session.refreshToken)
       return session.accessToken
-    } catch {
-      clearSessionTokens()
-      return null
-    } finally {
-      refreshInFlight = null
+    } catch (caught) {
+      if (isSessionAborted(caught)) throw caught
+      if (
+        sessionEpoch !== epochAtStart ||
+        localStorage.getItem(REFRESH_KEY) !== refreshToken
+      ) {
+        throw new ApiError(0, 'La sesión cambió', 'STALE_SESSION')
+      }
+      if (caught instanceof ApiError && caught.status === 401) {
+        clearSessionTokens()
+        return null
+      }
+      if (caught instanceof ApiError) throw caught
+      throw new ApiError(0, 'No hay conexión con el servidor')
     }
   })()
 
-  return refreshInFlight
+  refreshInFlight = promise
+  void promise.finally(() => {
+    if (refreshInFlight === promise) refreshInFlight = null
+  })
+  return promise
 }
 
 async function authRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -101,12 +145,16 @@ async function authRequest<T>(path: string, init: RequestInit = {}): Promise<T> 
 
   let token = localStorage.getItem(ACCESS_KEY)
   if (!token) {
-    throw new ApiError(401, 'La sesión expiró. Vuelve a entrar')
+    token = await refreshAccessToken()
+    if (!token) {
+      throw new ApiError(401, 'La sesión expiró. Vuelve a entrar')
+    }
   }
 
   try {
     return await run(token)
   } catch (caught) {
+    if (isSessionAborted(caught)) throw caught
     if (!(caught instanceof ApiError) || caught.status !== 401) {
       throw caught
     }
@@ -140,7 +188,7 @@ export function getStaffInviteStatus(
   token: string,
 ): Promise<{ status: 'valid' | 'expired' | 'unavailable' }> {
   return request<{ status: 'valid' | 'expired' | 'unavailable' }>(
-    `/auth/staff/invite-status?token=${encodeURIComponent(token)}`,
+    `/auth/staff/invite-status?token=${encodeURIComponent(token.trim())}`,
     { headers: { Accept: 'application/json' } },
   )
 }
@@ -152,7 +200,7 @@ export function setStaffPassword(
   return request<{ success: true }>('/auth/staff/set-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inviteToken, password }),
+    body: JSON.stringify({ inviteToken: inviteToken.trim(), password }),
   })
 }
 

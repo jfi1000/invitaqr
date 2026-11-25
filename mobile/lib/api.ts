@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { paymentReturnUrls } from './checkout'
 import { clearPersistedSession, persistSession, useAuthStore } from '../stores/auth.store'
 import type {
   AuthUser,
@@ -9,6 +10,7 @@ import type {
   ImportResult,
   InviteStaffResult,
   PlannerEvent,
+  PurchaseRecord,
   RsvpView,
   Session,
 } from './types'
@@ -146,6 +148,25 @@ export async function changeEventStatus(
   return unwrap(response.data)
 }
 
+export async function getPurchases(): Promise<PurchaseRecord[]> {
+  const response = await api.get<{ data: PurchaseRecord[] }>('/billing/purchases')
+  return unwrap(response.data)
+}
+
+export async function createCheckout(
+  eventId: string,
+  plan: 'BASIC' | 'PRO',
+): Promise<{ url: string }> {
+  const { successUrl, cancelUrl } = paymentReturnUrls(eventId, plan)
+  const response = await api.post<{ data: { url: string } }>('/billing/checkout', {
+    eventId,
+    plan,
+    successUrl,
+    cancelUrl,
+  })
+  return unwrap(response.data)
+}
+
 export async function ensurePasses(
   eventId: string,
 ): Promise<{ created: number; guests: GuestView[] }> {
@@ -261,7 +282,16 @@ export async function importGuestCsv(
   const response = await api.post<{ data: ImportResult }>(
     `/events/${eventId}/guests/import-csv`,
     body,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    {
+      // React Native sets the multipart boundary. A bare Content-Type drops the file.
+      headers: { 'Content-Type': undefined },
+      transformRequest: (data, headers) => {
+        if (headers) {
+          delete headers['Content-Type']
+        }
+        return data
+      },
+    },
   )
   return unwrap(response.data)
 }

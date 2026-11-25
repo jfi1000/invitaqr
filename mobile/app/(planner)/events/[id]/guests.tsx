@@ -17,6 +17,8 @@ import { AppButton } from '../../../../components/ui/AppButton'
 import { FieldLabel } from '../../../../components/ui/FieldLabel'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { GuestListSkeleton } from '../../../../components/ui/screen-skeletons'
+import { Skeleton } from '../../../../components/ui/Skeleton'
 import { useEvent } from '../../../../hooks/useEvents'
 import {
   apiErrorMessage,
@@ -50,6 +52,20 @@ function inputClass(hasError: boolean): string {
   }`
 }
 
+const PLAN_PEOPLE: Record<string, number> = { FREE: 50, BASIC: 150, PRO: 500 }
+
+function seatBudgetFor(
+  event: { capacity: number; plan: string } | undefined,
+  guestList: { maxCompanions: number }[],
+): { limit: number; remaining: number; maxCompanions: number } | null {
+  if (!event) return null
+  const planCap = PLAN_PEOPLE[event.plan] ?? event.capacity
+  const limit = Math.min(event.capacity > 0 ? event.capacity : planCap, planCap)
+  const reserved = guestList.reduce((sum, guest) => sum + 1 + (guest.maxCompanions ?? 0), 0)
+  const remaining = Math.max(0, limit - reserved)
+  return { limit, remaining, maxCompanions: Math.max(0, remaining - 1) }
+}
+
 export default function GuestsScreen() {
   const params = useLocalSearchParams<{ id: string }>()
   const eventId = routeId(params.id)
@@ -76,6 +92,10 @@ export default function GuestsScreen() {
   const isSocial = eventQuery.data?.type === 'social'
   const hasTables = Boolean(isSocial && eventQuery.data?.hasTables)
   const tableCount = eventQuery.data?.tableCount ?? null
+  const seatBudget = seatBudgetFor(
+    eventQuery.data,
+    guests.data ?? [],
+  )
 
   function refresh() {
     void client.invalidateQueries({ queryKey: queryKeys.guests(eventId) })
@@ -114,6 +134,11 @@ export default function GuestsScreen() {
     const maxCompanions = Number(companions)
     if (companions.trim() === '' || !Number.isInteger(maxCompanions) || maxCompanions < 0) {
       next.companions = 'Usa un número válido (0 o más)'
+    } else if (seatBudget && maxCompanions > seatBudget.maxCompanions) {
+      next.companions =
+        seatBudget.remaining <= 0
+          ? `El cupo de ${seatBudget.limit} personas ya está completo`
+          : `Quedan ${seatBudget.remaining} lugares de ${seatBudget.limit}. Puede llevar hasta ${seatBudget.maxCompanions} acompañantes`
     }
 
     let table_number: number | undefined
@@ -276,8 +301,11 @@ export default function GuestsScreen() {
       <ScreenHeader
         title="Invitados"
         eyebrow="Gestión"
-        subtitle={eventName ? `Evento: ${eventName}` : 'Cargando evento…'}
+        subtitle={eventName ? `Evento: ${eventName}` : undefined}
       />
+      {!eventName && eventQuery.isPending ? (
+        <Skeleton width={190} height={14} style={{ marginTop: -12, marginBottom: 12 }} />
+      ) : null}
       <View className="gap-2">
         <AppButton
           label="Agregar uno"
@@ -323,12 +351,13 @@ export default function GuestsScreen() {
         <Text className="mt-3 text-sm text-red-700">{apiErrorMessage(guests.error)}</Text>
       ) : null}
       <FlatList
+        style={{ flex: 1 }}
         className="mt-4"
         data={guests.data ?? []}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
           guests.isLoading ? (
-            <Text className="text-base text-mute">Cargando…</Text>
+            <GuestListSkeleton />
           ) : (
             <Text className="mt-6 text-base text-mute">Aún no hay invitados.</Text>
           )
@@ -452,6 +481,12 @@ export default function GuestsScreen() {
               />
               {fieldErrors.companions ? (
                 <Text className="mt-1 text-sm text-red-600">{fieldErrors.companions}</Text>
+              ) : seatBudget ? (
+                <Text className="mt-1 text-sm text-mute">
+                  {seatBudget.remaining <= 0
+                    ? `Cupo de ${seatBudget.limit} personas completo.`
+                    : `Cupo ${seatBudget.limit}. Quedan ${seatBudget.remaining} lugares; hasta ${seatBudget.maxCompanions} acompañantes.`}
+                </Text>
               ) : null}
 
               {hasTables ? (
