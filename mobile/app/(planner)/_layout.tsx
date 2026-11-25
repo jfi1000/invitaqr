@@ -27,12 +27,20 @@ export default function PlannerLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="events"
         options={{
           title: 'Eventos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={tabIconColor(color)} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Inicio',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
         }}
       />
       <Tabs.Screen
@@ -48,16 +56,6 @@ export default function PlannerLayout() {
         name="billing"
         options={{
           title: 'Facturación',
-          tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          title: 'Evento',
-          // href: null marks the route hidden and SDK 58 immediately
-          // redirects back to the first tab, so the event screen never opens.
           tabBarButton: () => null,
           tabBarItemStyle: { display: 'none', width: 0, height: 0 },
         }}

@@ -28,12 +28,19 @@ function AuthGate() {
     if (!isAuthenticated && !inAuth && !inPublicRsvp) {
       router.replace('/(auth)/login')
     } else if (isAuthenticated && inAuth) {
-      router.replace('/(planner)')
+      router.replace('/(planner)/events')
     }
   }, [hydrated, isAuthenticated, segments, router])
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(planner)" />

@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGlobalSearchParams, useLocalSearchParams, useRouter, useSegments } from 'expo-router'
-import { useState } from 'react'
-import { Image, Linking, Text, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, Image, Linking, Modal, ScrollView, Text, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   buildEventPayload,
   emptyEventEditorValues,
@@ -60,18 +61,27 @@ export default function EventDetailScreen() {
   const client = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState<EventEditorValues>(emptyEventEditorValues())
-  const [formError, setFormError] = useState<string | null>(null)
   const [paying, setPaying] = useState<'BASIC' | 'PRO' | null>(null)
+  const alertedLoadError = useRef<unknown>(null)
+
+  useEffect(() => {
+    if (!id || !eventQuery.isError) {
+      alertedLoadError.current = null
+      return
+    }
+    if (alertedLoadError.current === eventQuery.error) return
+    alertedLoadError.current = eventQuery.error
+    Alert.alert('Error', apiErrorMessage(eventQuery.error))
+  }, [id, eventQuery.isError, eventQuery.error])
 
   async function pay(plan: 'BASIC' | 'PRO') {
     if (!id || paying) return
     setPaying(plan)
-    setFormError(null)
     try {
       const session = await createCheckout(id, plan)
       await openStripeCheckout(session.url)
     } catch (caught) {
-      setFormError(apiErrorMessage(caught))
+      Alert.alert('Error', apiErrorMessage(caught))
       setPaying(null)
     }
   }
@@ -118,7 +128,6 @@ export default function EventDetailScreen() {
       client.setQueryData(queryKeys.event(id), updated)
       void client.invalidateQueries({ queryKey: queryKeys.events })
       setEditing(false)
-      setFormError(null)
     },
     onError: (caught) => {
       const own =
@@ -128,7 +137,7 @@ export default function EventDetailScreen() {
           caught.message.startsWith('La fecha') ||
           caught.message.startsWith('Indica') ||
           caught.message.startsWith('Escribe las zonas'))
-      setFormError(own ? caught.message : apiErrorMessage(caught))
+      Alert.alert('Error', own ? caught.message : apiErrorMessage(caught))
     },
   })
 
@@ -150,22 +159,18 @@ export default function EventDetailScreen() {
       zones: event.zones ?? '',
       logo: event.logo,
     })
-    setFormError(null)
     setEditing(true)
   }
 
   return (
+    <>
     <Screen scroll>
       <ScreenHeader
         title="Evento"
         eyebrow="InvitaQR"
         onBack={() => backToEventList(router)}
       />
-      {!id ? <Text className="mt-4 text-base text-red-700">No encontramos este evento.</Text> : null}
       {id && eventQuery.isPending ? <EventDetailSkeleton /> : null}
-      {eventQuery.isError ? (
-        <Text className="mt-4 text-base text-red-700">{apiErrorMessage(eventQuery.error)}</Text>
-      ) : null}
       {event ? (
         <View>
           <View className="items-center rounded-[28px] border border-line bg-card px-5 pb-6 pt-7">
@@ -313,7 +318,6 @@ export default function EventDetailScreen() {
                   </View>
                 </>
               )}
-              {formError ? <Text className="text-center text-base text-red-700">{formError}</Text> : null}
             </View>
           )}
 
@@ -334,37 +338,71 @@ export default function EventDetailScreen() {
             onPress={() => router.push(`/(planner)/events/${id}/staff`)}
           />
           <AppButton className="mt-3" label="Editar evento" variant="secondary" onPress={openEdit} />
-
-          {editing ? (
-            <View className="mt-6 rounded-[28px] border border-line bg-card p-4">
-              <Text
-                className="text-[28px] text-inkwell"
-                style={{ fontFamily: 'Inter_600SemiBold', letterSpacing: -0.5 }}
-              >
-                Editar evento
-              </Text>
-              <EventEditorFields
-                allowPast
-                paying={paying}
-                onPay={(plan) => {
-                  if (event.paidPlan === 'PRO') return
-                  if (event.paidPlan === 'BASIC' && plan !== 'PRO') return
-                  void pay(plan)
-                }}
-                values={values}
-                onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
-              />
-              {formError ? <Text className="mt-3 text-base text-red-700">{formError}</Text> : null}
-              <AppButton
-                className="mt-4"
-                label={save.isPending ? 'Guardando…' : 'Guardar'}
-                loading={save.isPending}
-                onPress={() => save.mutate()}
-              />
-            </View>
-          ) : null}
         </View>
       ) : null}
     </Screen>
+    <Modal
+      visible={editing}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => {
+        if (!save.isPending) setEditing(false)
+      }}
+    >
+      <SafeAreaView className="flex-1 bg-paper">
+        <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 12 }}>
+          <ScreenHeader
+            title="Editar evento"
+            eyebrow="Evento"
+            subtitle={event?.name}
+            onBack={() => {
+              if (!save.isPending) setEditing(false)
+            }}
+          />
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <EventEditorFields
+              allowPast
+              paying={paying}
+              onPay={(plan) => {
+                if (!event) return
+                if (event.paidPlan === 'PRO') return
+                if (event.paidPlan === 'BASIC' && plan !== 'PRO') return
+                void pay(plan)
+              }}
+              values={values}
+              onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
+            />
+          </ScrollView>
+          <View
+            style={{
+              paddingTop: 12,
+              paddingBottom: 8,
+              borderTopWidth: 1,
+              borderTopColor: '#e6e2f2',
+              backgroundColor: '#f7f6fb',
+            }}
+          >
+            <AppButton
+              label={save.isPending ? 'Guardando…' : 'Guardar'}
+              loading={save.isPending}
+              onPress={() => save.mutate()}
+            />
+            <AppButton
+              className="mt-2"
+              label="Cancelar"
+              variant="ghost"
+              disabled={save.isPending}
+              onPress={() => setEditing(false)}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
+    </Modal>
+    </>
   )
 }
