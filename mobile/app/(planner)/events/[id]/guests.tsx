@@ -17,6 +17,8 @@ import { AppButton } from '../../../../components/ui/AppButton'
 import { FieldLabel } from '../../../../components/ui/FieldLabel'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { GuestListSkeleton } from '../../../../components/ui/screen-skeletons'
+import { Skeleton } from '../../../../components/ui/Skeleton'
 import { useEvent } from '../../../../hooks/useEvents'
 import {
   apiErrorMessage,
@@ -299,8 +301,11 @@ export default function GuestsScreen() {
       <ScreenHeader
         title="Invitados"
         eyebrow="Gestión"
-        subtitle={eventName ? `Evento: ${eventName}` : 'Cargando evento…'}
+        subtitle={eventName ? `Evento: ${eventName}` : undefined}
       />
+      {!eventName && eventQuery.isPending ? (
+        <Skeleton width={190} height={14} style={{ marginTop: -12, marginBottom: 12 }} />
+      ) : null}
       <View className="gap-2">
         <AppButton
           label="Agregar uno"
@@ -352,7 +357,7 @@ export default function GuestsScreen() {
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
           guests.isLoading ? (
-            <Text className="text-base text-mute">Cargando…</Text>
+            <GuestListSkeleton />
           ) : (
             <Text className="mt-6 text-base text-mute">Aún no hay invitados.</Text>
           )

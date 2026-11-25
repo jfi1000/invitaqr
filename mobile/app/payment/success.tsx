@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { Platform, Text, View } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppButton } from '../../components/ui/AppButton'
+import { PlanLineSkeleton } from '../../components/ui/screen-skeletons'
 import { Screen } from '../../components/ui/Screen'
 import { useEvent } from '../../hooks/useEvents'
 import { queryKeys } from '../../lib/query'
@@ -76,6 +77,8 @@ export default function PaymentSuccessScreen() {
             >
               {`Tienes el plan ${plan}.`}
             </Text>
+          ) : eventId ? (
+            <PlanLineSkeleton />
           ) : null}
           <View className="mt-10 w-full">
             <AppButton

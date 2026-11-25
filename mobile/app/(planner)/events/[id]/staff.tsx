@@ -8,6 +8,7 @@ import { AppButton } from '../../../../components/ui/AppButton'
 import { FieldLabel } from '../../../../components/ui/FieldLabel'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { StaffListSkeleton } from '../../../../components/ui/screen-skeletons'
 import { useEvent } from '../../../../hooks/useEvents'
 import {
   apiErrorMessage,
@@ -116,9 +117,6 @@ export default function EventStaffScreen() {
         <Text className="mt-3 text-sm text-red-700">{error}</Text>
       ) : null}
 
-      {staffQuery.isPending ? (
-        <Text className="mt-4 text-base text-mute">Cargando…</Text>
-      ) : null}
       {staffQuery.isError ? (
         <Text className="mt-4 text-base text-red-700">
           {apiErrorMessage(staffQuery.error)}
@@ -131,7 +129,9 @@ export default function EventStaffScreen() {
         data={staffQuery.data ?? []}
         keyExtractor={(item) => item.staffId}
         ListEmptyComponent={
-          staffQuery.isSuccess ? (
+          staffQuery.isPending ? (
+            <StaffListSkeleton />
+          ) : staffQuery.isSuccess ? (
             <Text className="mt-2 text-base text-mute">
               Aún no hay personal asignado.
             </Text>

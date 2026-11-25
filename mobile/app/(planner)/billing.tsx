@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from 'react-native'
 import { StatusBadge } from '../../components/StatusBadge'
 import { Screen } from '../../components/ui/Screen'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
+import { BillingListSkeleton } from '../../components/ui/screen-skeletons'
 import { apiErrorMessage, getPurchases } from '../../lib/api'
 import { formatWhen } from '../../lib/format'
 import { queryKeys } from '../../lib/query'
@@ -40,9 +41,7 @@ export default function BillingScreen() {
           eyebrow="Facturación"
           subtitle="Paquetes contratados, un pago por evento"
         />
-        {purchases.isPending ? (
-          <Text style={typography.body}>Cargando contrataciones…</Text>
-        ) : null}
+        {purchases.isPending ? <BillingListSkeleton /> : null}
         {purchases.isError ? (
           <Text className="text-base text-red-700">{apiErrorMessage(purchases.error)}</Text>
         ) : null}

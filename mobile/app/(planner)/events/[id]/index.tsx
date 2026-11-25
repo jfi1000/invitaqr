@@ -12,6 +12,7 @@ import { StatusBadge } from '../../../../components/StatusBadge'
 import { AppButton } from '../../../../components/ui/AppButton'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
+import { EventDetailSkeleton } from '../../../../components/ui/screen-skeletons'
 import { useChangeEventStatus, useEvent } from '../../../../hooks/useEvents'
 import { apiErrorMessage, createCheckout, updateEvent } from '../../../../lib/api'
 import { openStripeCheckout } from '../../../../lib/checkout'
@@ -159,9 +160,7 @@ export default function EventDetailScreen() {
         onBack={() => backToEventList(router)}
       />
       {!id ? <Text className="mt-4 text-base text-red-700">No encontramos este evento.</Text> : null}
-      {id && eventQuery.isPending ? (
-        <Text className="mt-4 text-base text-mute">Cargando…</Text>
-      ) : null}
+      {id && eventQuery.isPending ? <EventDetailSkeleton /> : null}
       {eventQuery.isError ? (
         <Text className="mt-4 text-base text-red-700">{apiErrorMessage(eventQuery.error)}</Text>
       ) : null}

@@ -38,6 +38,8 @@ function AuthGate() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(planner)" />
       <Stack.Screen name="rsvp/[token]" />
+      <Stack.Screen name="payment/success" />
+      <Stack.Screen name="payment/cancel" />
     </Stack>
   )
 }

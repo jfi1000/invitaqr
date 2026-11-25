@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { paymentReturnUrls } from './checkout'
 import { clearPersistedSession, persistSession, useAuthStore } from '../stores/auth.store'
 import type {
   AuthUser,
@@ -156,9 +157,12 @@ export async function createCheckout(
   eventId: string,
   plan: 'BASIC' | 'PRO',
 ): Promise<{ url: string }> {
+  const { successUrl, cancelUrl } = paymentReturnUrls(eventId, plan)
   const response = await api.post<{ data: { url: string } }>('/billing/checkout', {
     eventId,
     plan,
+    successUrl,
+    cancelUrl,
   })
   return unwrap(response.data)
 }

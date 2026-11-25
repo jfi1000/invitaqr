@@ -15,6 +15,7 @@ import { SuccessBurst } from '../../components/SuccessBurst'
 import { AppButton } from '../../components/ui/AppButton'
 import { Screen } from '../../components/ui/Screen'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
+import { EventListSkeleton } from '../../components/ui/screen-skeletons'
 import { useCreateEvent, useEvents } from '../../hooks/useEvents'
 import { apiErrorMessage, createCheckout } from '../../lib/api'
 import { openStripeCheckout } from '../../lib/checkout'
@@ -112,11 +113,13 @@ export default function DashboardScreen() {
         }
       />
 
-      {events.isLoading ? <Text className="text-base text-mute">Cargando…</Text> : null}
       {events.isError ? (
         <Text className="text-base text-red-700">{apiErrorMessage(events.error)}</Text>
       ) : null}
 
+      {events.isLoading ? <EventListSkeleton /> : null}
+
+      {events.isLoading ? null : (
       <FlatList
         style={{ flex: 1 }}
         data={events.data ?? []}
@@ -137,6 +140,7 @@ export default function DashboardScreen() {
           />
         )}
       />
+      )}
 
       <Modal animationType="slide" visible={open} onRequestClose={() => setOpen(false)}>
         <SafeAreaView className="flex-1 bg-paper">
