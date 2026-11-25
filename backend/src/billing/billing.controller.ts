@@ -54,6 +54,7 @@ export class BillingController {
       dto.eventId,
       dto.plan,
       user.id,
+      { successUrl: dto.successUrl, cancelUrl: dto.cancelUrl },
     );
   }
 

@@ -54,6 +54,7 @@ export class BillingService {
     eventId: string,
     plan: PaidPlan,
     userId: string,
+    returnUrls?: { successUrl?: string; cancelUrl?: string },
   ): Promise<{ url: string }> {
     const event = await this.requireDraftEvent(eventId, userId);
     const paid = await this.payments.findOne({
@@ -69,16 +70,25 @@ export class BillingService {
       });
     }
 
-    const appUrl = (
-      this.config.get<string>('APP_URL') || 'http://localhost:3000'
-    ).replace(/\/$/, '');
+    const successUrl = this.returnUrl(
+      returnUrls?.successUrl,
+      'success',
+      event.id,
+      plan,
+    );
+    const cancelUrl = this.returnUrl(
+      returnUrls?.cancelUrl,
+      'cancel',
+      event.id,
+      plan,
+    );
     const session = await this.stripe().checkout.sessions.create({
       mode: 'payment',
       line_items: [{ price: this.priceId(plan), quantity: 1 }],
       metadata: { eventId: event.id, plan },
       client_reference_id: event.id,
-      success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&event_id=${event.id}&plan=${plan}`,
-      cancel_url: `${appUrl}/payment/cancel?event_id=${event.id}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
 
     if (!session.url) {
@@ -277,6 +287,73 @@ export class BillingService {
       });
     }
     return event;
+  }
+
+  private returnUrl(
+    raw: string | undefined,
+    kind: 'success' | 'cancel',
+    eventId: string,
+    plan: PaidPlan,
+  ): string {
+    const appUrl = (
+      this.config.get<string>('APP_URL') || 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const fallback =
+      kind === 'success'
+        ? `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&event_id=${eventId}&plan=${plan}`
+        : `${appUrl}/payment/cancel?event_id=${eventId}`;
+    const value = raw?.trim();
+    if (!value) return fallback;
+    if (value.length > 500 || !this.isAppReturnUrl(value, kind, eventId)) {
+      throw new BadRequestException({
+        error: 'INVALID_RETURN_URL',
+        message: 'La dirección de regreso a la app no es válida',
+      });
+    }
+    return value;
+  }
+
+  private isAppReturnUrl(
+    value: string,
+    kind: 'success' | 'cancel',
+    eventId: string,
+  ): boolean {
+    if (kind === 'success' && !value.includes('session_id={CHECKOUT_SESSION_ID}')) {
+      return false;
+    }
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return false;
+    }
+    const route = `${url.hostname}${url.pathname}`.toLowerCase();
+    const expected = kind === 'success' ? 'payment/success' : 'payment/cancel';
+    if (!route.includes(expected) || url.searchParams.get('event_id') !== eventId) {
+      return false;
+    }
+    const protocol = url.protocol.replace(':', '').toLowerCase();
+    if (protocol === 'invitaqr' || protocol === 'exp' || protocol === 'exps') {
+      return true;
+    }
+    if (protocol !== 'http' && protocol !== 'https') return false;
+    const appUrl = (
+      this.config.get<string>('APP_URL') || 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    let allowed: URL | null = null;
+    try {
+      allowed = new URL(appUrl);
+    } catch {
+      allowed = null;
+    }
+    if (allowed && url.origin === allowed.origin) return true;
+    const host = url.hostname;
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    );
   }
 
   private stripe(): Stripe {
