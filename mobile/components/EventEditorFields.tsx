@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker'
 import { useMemo, useState } from 'react'
 import { Image, Pressable, Switch, Text, TextInput, View } from 'react-native'
+import { AddressAutocomplete, type PhotonFeature } from './AddressAutocomplete'
 import { DateTimeField } from './DateTimeField'
 import { VenueMapPicker } from './VenueMapPicker'
 import { FieldLabel } from './ui/FieldLabel'
@@ -107,19 +108,23 @@ export function EventEditorFields({
         onChangeText={(venueName) => onChange({ venueName })}
       />
       <FieldLabel>Ubicación / dirección</FieldLabel>
-      <TextInput
-        className={inputClass}
-        style={{ fontFamily: 'Inter_500Medium' }}
-        placeholder="Av. Reforma 120, Xalapa"
-        placeholderTextColor="#8d86a6"
+      <AddressAutocomplete
         value={values.location}
-        onChangeText={(location) => onChange({ location })}
+        onChangeText={(location) => onChange({ location, latitude: null, longitude: null })}
+        onSelect={(feature: PhotonFeature) => {
+          onChange({
+            location: feature.fullLabel,
+            latitude: feature.latitude,
+            longitude: feature.longitude,
+          })
+        }}
+        placeholder="Av. Independencia 100, Xalapa, Veracruz"
       />
       <View className="mt-3 rounded-3xl border border-line bg-mist/70 px-4 py-3">
-        <Text className="text-sm text-mute" style={{ fontFamily: 'Inter_500Medium' }}>
+        <Text className="text-sm text-mute" style={{ fontFamily: 'Inter_500Medium', color: '#2a2348' }}>
           {pin
             ? `Pin listo · ${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}`
-            : 'Aún no hay pin. Ubica el mapa para marcar el punto exacto.'}
+            : 'Escribe la dirección y selecciona una sugerencia, o ubica el mapa manualmente.'}
         </Text>
         <AppButton
           className="mt-3"
