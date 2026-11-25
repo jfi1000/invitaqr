@@ -71,7 +71,10 @@ export function EventCard({ event, onPress }: EventCardProps) {
             </Text>
             <StatusBadge value={event.status} />
           </View>
-          <Text style={[typography.caption, { marginTop: 6 }]} numberOfLines={2}>
+          <Text
+            style={[typography.caption, { marginTop: 6, color: '#111111' }]}
+            numberOfLines={2}
+          >
             📅 {formatEventRange(event.startsAt, event.endsAt)}
           </Text>
           <Text style={[typography.caption, { marginTop: 4 }]} numberOfLines={2}>

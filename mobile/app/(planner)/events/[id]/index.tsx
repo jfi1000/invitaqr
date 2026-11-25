@@ -33,7 +33,10 @@ function InfoRow({ icon, text }: { icon: string; text: string }) {
   return (
     <View className="mt-3 flex-row items-start gap-3">
       <Text className="text-lg">{icon}</Text>
-      <Text className="flex-1 text-base text-inkwell" style={{ fontFamily: 'Inter_500Medium' }}>
+      <Text
+        className="flex-1 text-base"
+        style={{ fontFamily: 'Inter_500Medium', color: '#111111' }}
+      >
         {text}
       </Text>
     </View>
