@@ -59,7 +59,7 @@ export class EventsService {
       capacity,
       rsvpDeadline: dto.rsvp_deadline ? new Date(dto.rsvp_deadline) : null,
       plan,
-      status: EventStatus.DRAFT,
+      status: EventStatus.ACTIVE,
       ...extras,
       logo: this.normalizeLogo(dto.logo),
     });
@@ -208,9 +208,6 @@ export class EventsService {
         message: 'Esa transición de estado no está permitida',
       });
     }
-    if (status === EventStatus.ACTIVE) {
-      await this.assertPlanPaid(event);
-    }
     event.status = status;
     return this.events.save(event);
   }
@@ -261,22 +258,6 @@ export class EventsService {
       throw new BadRequestException({
         error: 'VALIDATION_ERROR',
         message: 'La fecha de fin no puede ser anterior a la de inicio',
-      });
-    }
-  }
-
-  private async assertPlanPaid(event: Event): Promise<void> {
-    if (event.plan === EventPlan.FREE) {
-      return;
-    }
-    const rows: unknown[] = await this.dataSource.query(
-      `SELECT 1 FROM payments WHERE event_id = $1 AND plan = $2 AND status = 'PAID' LIMIT 1`,
-      [event.id, event.plan],
-    );
-    if (rows.length === 0) {
-      throw new BadRequestException({
-        error: 'PLAN_NOT_PAID',
-        message: 'El plan debe estar pagado antes de activar el evento',
       });
     }
   }

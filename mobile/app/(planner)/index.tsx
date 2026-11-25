@@ -148,7 +148,7 @@ export default function DashboardScreen() {
             <ScreenHeader
               title="Nuevo evento"
               eyebrow="Crear"
-              subtitle="BASIC y PRO se pueden activar después del pago."
+              subtitle="BASIC y PRO se pueden pagar después, el evento ya queda activo."
               onBack={() => setOpen(false)}
             />
             <ScrollView

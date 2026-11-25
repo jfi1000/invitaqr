@@ -280,10 +280,13 @@ export class BillingService {
         message: 'Evento no encontrado',
       });
     }
-    if (event.status !== EventStatus.DRAFT) {
+    if (
+      event.status === EventStatus.CLOSED ||
+      event.status === EventStatus.CANCELLED
+    ) {
       throw new BadRequestException({
-        error: 'EVENT_NOT_DRAFT',
-        message: 'Solo se puede pagar un evento en borrador',
+        error: 'EVENT_NOT_PAYABLE',
+        message: 'No se puede pagar un evento cerrado o cancelado',
       });
     }
     return event;

@@ -119,12 +119,23 @@ export function DateTimeField({
         {optional ? ' (opcional)' : ''}
       </Text>
       <Pressable
-        className="rounded-2xl border border-line bg-white px-4 py-4"
         onPress={() => setOpen(true)}
+        style={{
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: '#e6e2f2',
+          backgroundColor: '#ffffff',
+          paddingHorizontal: 16,
+          paddingVertical: 16,
+        }}
       >
         <Text
-          className={`text-base ${localValue ? 'text-inkwell' : 'text-mute'}`}
-          style={{ fontFamily: 'Inter_500Medium' }}
+          style={{
+            fontFamily: 'Inter_500Medium',
+            fontSize: 16,
+            lineHeight: 22,
+            color: localValue ? '#111111' : '#5c5670',
+          }}
         >
           {formatDisplay(localValue)}
         </Text>
@@ -138,13 +149,29 @@ export function DateTimeField({
       ) : null}
       {hint ? <Text className="mt-2 text-sm text-mute">{hint}</Text> : null}
       {open ? (
-        <View>
+        <View
+          style={{
+            marginTop: 8,
+            borderRadius: 16,
+            backgroundColor: '#ffffff',
+            borderWidth: 1,
+            borderColor: '#e6e2f2',
+            overflow: 'hidden',
+          }}
+        >
           <DateTimePicker
             value={minimum ? clampToMinimum(parseLocal(localValue), minimum) : parseLocal(localValue)}
             mode="datetime"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             {...(minimum ? { minimumDate: minimum } : {})}
-            style={Platform.OS === 'ios' ? { height: 180 } : undefined}
+            themeVariant="light"
+            textColor="#111111"
+            accentColor="#4334d6"
+            style={
+              Platform.OS === 'ios'
+                ? { height: 216, backgroundColor: '#ffffff' }
+                : { backgroundColor: '#ffffff' }
+            }
             onChange={(event: DateTimePickerEvent, date?: Date) => {
               if (Platform.OS !== 'ios') {
                 setOpen(false)

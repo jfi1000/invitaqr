@@ -13,7 +13,7 @@ import { AppButton } from '../../../../components/ui/AppButton'
 import { Screen } from '../../../../components/ui/Screen'
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader'
 import { EventDetailSkeleton } from '../../../../components/ui/screen-skeletons'
-import { useChangeEventStatus, useEvent } from '../../../../hooks/useEvents'
+import { useEvent } from '../../../../hooks/useEvents'
 import { apiErrorMessage, createCheckout, updateEvent } from '../../../../lib/api'
 import { openStripeCheckout } from '../../../../lib/checkout'
 import { eventLogo } from '../../../../lib/brand'
@@ -35,7 +35,10 @@ function InfoRow({ icon, text }: { icon: string; text: string }) {
   return (
     <View className="mt-3 flex-row items-start gap-3">
       <Text className="text-lg">{icon}</Text>
-      <Text className="flex-1 text-base text-inkwell" style={{ fontFamily: 'Inter_500Medium' }}>
+      <Text
+        className="flex-1 text-base"
+        style={{ fontFamily: 'Inter_500Medium', color: '#111111' }}
+      >
         {text}
       </Text>
     </View>
@@ -53,7 +56,6 @@ export default function EventDetailScreen() {
     segments.map(String).reverse().find((segment) => UUID.test(segment)) ||
     ''
   const eventQuery = useEvent(id)
-  const changeStatus = useChangeEventStatus(id)
   const event = eventQuery.data
   const client = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -279,9 +281,9 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
 
-          {event.status === 'DRAFT' ? (
+          {event.paidPlan === 'PRO' ? null : (
             <View className="mt-5 gap-3">
-              {event.paidPlan === 'PRO' ? null : event.paidPlan === 'BASIC' ? (
+              {event.paidPlan === 'BASIC' ? (
                 <AppButton
                   label={paying === 'PRO' ? 'Abriendo pago…' : 'Subir a PRO $599'}
                   loading={paying === 'PRO'}
@@ -291,7 +293,7 @@ export default function EventDetailScreen() {
               ) : (
                 <>
                   <Text className="text-center text-sm text-mute" style={{ fontFamily: 'Inter_500Medium' }}>
-                    FREE se activa sin pago. BASIC ($299) y PRO ($599) se cobran una vez.
+                    BASIC ($299) y PRO ($599) se cobran una vez por evento.
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     <AppButton
@@ -311,18 +313,9 @@ export default function EventDetailScreen() {
                   </View>
                 </>
               )}
-              <AppButton
-                label={changeStatus.isPending ? 'Activando…' : 'Activar evento'}
-                loading={changeStatus.isPending}
-                variant={event.paidPlan ? 'secondary' : 'primary'}
-                onPress={() => changeStatus.mutate('ACTIVE')}
-              />
               {formError ? <Text className="text-center text-base text-red-700">{formError}</Text> : null}
             </View>
-          ) : null}
-          {changeStatus.isError ? (
-            <Text className="mt-3 text-base text-red-700">{apiErrorMessage(changeStatus.error)}</Text>
-          ) : null}
+          )}
 
           <AppButton
             className="mt-4"
