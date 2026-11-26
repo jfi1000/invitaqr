@@ -2,7 +2,8 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker'
 import { createElement, useMemo, useState } from 'react'
-import { Platform, Pressable, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { AppButton } from './ui/AppButton'
 
 interface DateTimeFieldProps {
   label: string
@@ -36,14 +37,30 @@ function parseLocal(value: string): Date {
   return new Date(year, month - 1, day, hours, minutes, 0, 0)
 }
 
+const MONTHS = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+]
+
 function formatDisplay(value: string): string {
   if (!value) return 'Elegir fecha y hora'
   const date = parseLocal(value)
   if (Number.isNaN(date.getTime())) return 'Elegir fecha y hora'
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
+  const hours = date.getHours()
+  const hour12 = hours % 12 || 12
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const period = hours < 12 ? 'a.m.' : 'p.m.'
+  return `${date.getDate()} de ${MONTHS[date.getMonth()]} de ${date.getFullYear()}, ${hour12}:${minutes} ${period}`
 }
 
 function clampToMinimum(date: Date, minimum: Date): Date {
@@ -148,52 +165,91 @@ export function DateTimeField({
         </Pressable>
       ) : null}
       {hint ? <Text className="mt-2 text-sm text-mute">{hint}</Text> : null}
-      {open ? (
-        <View
-          style={{
-            marginTop: 8,
-            borderRadius: 16,
-            backgroundColor: '#ffffff',
-            borderWidth: 1,
-            borderColor: '#e6e2f2',
-            overflow: 'hidden',
-          }}
-        >
-          <DateTimePicker
-            value={minimum ? clampToMinimum(parseLocal(localValue), minimum) : parseLocal(localValue)}
-            mode="datetime"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            {...(minimum ? { minimumDate: minimum } : {})}
-            themeVariant="light"
-            textColor="#111111"
-            accentColor="#4334d6"
-            style={
-              Platform.OS === 'ios'
-                ? { height: 216, backgroundColor: '#ffffff' }
-                : { backgroundColor: '#ffffff' }
-            }
-            onChange={(event: DateTimePickerEvent, date?: Date) => {
-              if (Platform.OS !== 'ios') {
-                setOpen(false)
-              }
-              if (event.type === 'dismissed') {
-                setOpen(false)
-                return
-              }
-              if (date) {
-                applyChange(fromDate(date))
-              }
-            }}
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <Pressable
+            accessibilityLabel="Cerrar selector de fecha"
+            onPress={() => setOpen(false)}
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(17, 17, 17, 0.45)' }]}
           />
-          {Platform.OS === 'ios' ? (
-            <Pressable className="mt-2 self-end" onPress={() => setOpen(false)}>
-              <Text className="text-base text-indigo" style={{ fontFamily: 'Inter_600SemiBold' }}>
-                Listo
-              </Text>
-            </Pressable>
-          ) : null}
+          <View
+            style={{
+              backgroundColor: '#ffffff',
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingHorizontal: 20,
+              paddingTop: 10,
+              paddingBottom: 28,
+            }}
+          >
+            <View
+              style={{
+                alignSelf: 'center',
+                width: 42,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: '#e6e2f2',
+                marginBottom: 14,
+              }}
+            />
+            <Text
+              style={{
+                textAlign: 'center',
+                fontFamily: 'Inter_600SemiBold',
+                fontSize: 17,
+                color: '#111111',
+              }}
+            >
+              {label}
+            </Text>
+            <Text
+              style={{
+                marginTop: 4,
+                marginBottom: 8,
+                textAlign: 'center',
+                fontFamily: 'Inter_500Medium',
+                fontSize: 14,
+                color: '#5c5670',
+              }}
+            >
+              {formatDisplay(localValue)}
+            </Text>
+            <DateTimePicker
+              value={
+                minimum
+                  ? clampToMinimum(parseLocal(localValue), minimum)
+                  : parseLocal(localValue)
+              }
+              mode="datetime"
+              display="spinner"
+              locale="es-MX"
+              {...(minimum ? { minimumDate: minimum } : {})}
+              {...(Platform.OS === 'ios'
+                ? { themeVariant: 'light' as const, textColor: '#111111' }
+                : {
+                    positiveButton: { label: 'Listo', textColor: '#4334d6' },
+                    negativeButton: { label: 'Cancelar', textColor: '#5c5670' },
+                  })}
+              style={{ height: 216, backgroundColor: '#ffffff' }}
+              onChange={(event: DateTimePickerEvent, date?: Date) => {
+                if (event.type === 'dismissed') {
+                  setOpen(false)
+                  return
+                }
+                if (date) {
+                  applyChange(fromDate(date))
+                }
+              }}
+            />
+            <AppButton className="mt-2" label="Listo" onPress={() => setOpen(false)} />
+          </View>
         </View>
-      ) : null}
+      </Modal>
     </View>
   )
 }
