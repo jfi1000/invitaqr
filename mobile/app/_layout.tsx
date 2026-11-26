@@ -45,8 +45,8 @@ function AuthGate() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(planner)" />
       <Stack.Screen name="rsvp/[token]" />
-      <Stack.Screen name="payment/success" />
-      <Stack.Screen name="payment/cancel" />
+      <Stack.Screen name="payment/success" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="payment/cancel" options={{ gestureEnabled: false }} />
     </Stack>
   )
 }

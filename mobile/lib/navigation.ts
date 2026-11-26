@@ -1,15 +1,16 @@
 import type { ImperativeRouter } from 'expo-router'
 
-/** Empuja el evento sobre el listado para que el gesto de volver funcione. */
+/** Abre el evento sobre el listado. Si ya está en la pila, vuelve a esa copia. */
 export function openEvent(router: ImperativeRouter, id: string) {
-  router.push(`/(planner)/events/${id}`)
+  router.navigate(`/(planner)/events/${id}`)
 }
 
-/** Vuelve al listado de eventos, que queda debajo en la misma pila. */
+/** Sale de pago u otra pantalla suelta y deja solo el evento sobre el listado. */
+export function returnToEvent(router: ImperativeRouter, id: string) {
+  router.dismissTo(`/(planner)/events/${id}`)
+}
+
+/** Vuelve al listado y quita las pantallas del evento que hayan quedado encima. */
 export function backToEventList(router: ImperativeRouter) {
-  if (router.canGoBack()) {
-    router.back()
-    return
-  }
-  router.navigate('/(planner)/events')
+  router.dismissTo('/(planner)/events')
 }

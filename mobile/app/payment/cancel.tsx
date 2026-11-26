@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Text } from 'react-native'
 import { AppButton } from '../../components/ui/AppButton'
+import { returnToEvent } from '../../lib/navigation'
 import { Screen } from '../../components/ui/Screen'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 
@@ -20,10 +21,10 @@ export default function PaymentCancelScreen() {
         label={eventId ? 'Volver al evento' : 'Volver a mis eventos'}
         onPress={() => {
           if (eventId) {
-            router.replace(`/(planner)/events/${eventId}`)
+            returnToEvent(router, eventId)
             return
           }
-          router.replace('/(planner)')
+          router.dismissTo('/(planner)/events')
         }}
       />
     </Screen>

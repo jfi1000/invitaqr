@@ -119,7 +119,7 @@ export default function PassesScreen() {
           <AppButton
             className="mt-4"
             label="Agregar invitados"
-            onPress={() => router.push(`/(planner)/events/${eventId}/guests`)}
+            onPress={() => router.navigate(`/(planner)/events/${eventId}/guests`)}
           />
         </View>
       ) : null}

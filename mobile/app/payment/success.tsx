@@ -6,6 +6,7 @@ import { AppButton } from '../../components/ui/AppButton'
 import { PlanLineSkeleton } from '../../components/ui/screen-skeletons'
 import { Screen } from '../../components/ui/Screen'
 import { useEvent } from '../../hooks/useEvents'
+import { returnToEvent } from '../../lib/navigation'
 import { queryKeys } from '../../lib/query'
 import { type as typography } from '../../lib/typography'
 import { useAuthStore } from '../../stores/auth.store'
@@ -85,10 +86,10 @@ export default function PaymentSuccessScreen() {
               label={eventId ? 'Volver al evento' : 'Volver a mis eventos'}
               onPress={() => {
                 if (eventId) {
-                  router.replace(`/(planner)/events/${eventId}`)
+                  returnToEvent(router, eventId)
                   return
                 }
-                router.replace('/(planner)')
+                router.dismissTo('/(planner)/events')
               }}
             />
           </View>

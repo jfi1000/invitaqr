@@ -92,13 +92,13 @@ export default function DashboardScreen() {
         starts_at: startsAt,
         ends_at: values.ends.trim() ? endsAt : undefined,
       })
+      setOpen(false)
+      resetForm()
       if (plan === 'BASIC' || plan === 'PRO') {
         const session = await createCheckout(event.id, plan)
         await openStripeCheckout(session.url)
         return
       }
-      setOpen(false)
-      resetForm()
       setCreatedName(event.name)
       createdIdRef.current = event.id
       setCreatedId(event.id)
@@ -215,9 +215,10 @@ export default function DashboardScreen() {
         buttonLabel="Ver evento"
         onContinue={() => {
           const id = createdIdRef.current ?? createdId
-          if (id) {
-            openEvent(router, id)
-          }
+          createdIdRef.current = null
+          setCreatedId(null)
+          setCreatedName('')
+          if (id) openEvent(router, id)
         }}
         onExited={() => {
           createdIdRef.current = null

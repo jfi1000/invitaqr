@@ -78,6 +78,7 @@ export default function EventDetailScreen() {
   async function pay(plan: 'BASIC' | 'PRO') {
     if (!id || paying) return
     setPaying(plan)
+    setEditing(false)
     try {
       const session = await createCheckout(id, plan)
       await openStripeCheckout(session.url)
@@ -325,18 +326,18 @@ export default function EventDetailScreen() {
           <AppButton
             className="mt-4"
             label="Ver invitados"
-            onPress={() => router.push(`/(planner)/events/${id}/guests`)}
+            onPress={() => router.navigate(`/(planner)/events/${id}/guests`)}
           />
           <AppButton
             className="mt-3"
             label="Ver pases"
-            onPress={() => router.push(`/(planner)/events/${id}/passes`)}
+            onPress={() => router.navigate(`/(planner)/events/${id}/passes`)}
           />
           <AppButton
             className="mt-3"
             label="Staff"
             variant="secondary"
-            onPress={() => router.push(`/(planner)/events/${id}/staff`)}
+            onPress={() => router.navigate(`/(planner)/events/${id}/staff`)}
           />
           <AppButton className="mt-3" label="Editar evento" variant="secondary" onPress={openEdit} />
         </View>
