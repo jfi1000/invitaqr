@@ -1,7 +1,6 @@
 import * as ImagePicker from 'expo-image-picker'
 import { useMemo, useState } from 'react'
 import { Image, Pressable, Switch, Text, TextInput, View } from 'react-native'
-import { AddressAutocomplete, type PhotonFeature } from './AddressAutocomplete'
 import { DateTimeField } from './DateTimeField'
 import { VenueMapPicker } from './VenueMapPicker'
 import { FieldLabel } from './ui/FieldLabel'
@@ -24,7 +23,9 @@ const TYPES: { value: EventType; label: string }[] = [
 export interface EventEditorValues {
   name: string
   venueName: string
-  location: string
+  street: string
+  city: string
+  state: string
   latitude: number | null
   longitude: number | null
   starts: string
@@ -107,18 +108,32 @@ export function EventEditorFields({
         value={values.venueName}
         onChangeText={(venueName) => onChange({ venueName })}
       />
-      <FieldLabel>Ubicación / dirección</FieldLabel>
-      <AddressAutocomplete
-        value={values.location}
-        onChangeText={(location) => onChange({ location, latitude: null, longitude: null })}
-        onSelect={(feature: PhotonFeature) => {
-          onChange({
-            location: feature.fullLabel,
-            latitude: feature.latitude,
-            longitude: feature.longitude,
-          })
-        }}
-        placeholder="Av. Independencia 100, Xalapa, Veracruz"
+      <FieldLabel>Calle y número</FieldLabel>
+      <TextInput
+        className={inputClass}
+        style={{ fontFamily: 'Inter_500Medium', color: '#111111' }}
+        placeholder="Av. Independencia 450"
+        placeholderTextColor="#8d86a6"
+        value={values.street}
+        onChangeText={(street) => onChange({ street, latitude: null, longitude: null })}
+      />
+      <FieldLabel>Ciudad</FieldLabel>
+      <TextInput
+        className={inputClass}
+        style={{ fontFamily: 'Inter_500Medium', color: '#111111' }}
+        placeholder="Xalapa"
+        placeholderTextColor="#8d86a6"
+        value={values.city}
+        onChangeText={(city) => onChange({ city, latitude: null, longitude: null })}
+      />
+      <FieldLabel>Estado</FieldLabel>
+      <TextInput
+        className={inputClass}
+        style={{ fontFamily: 'Inter_500Medium', color: '#111111' }}
+        placeholder="Veracruz"
+        placeholderTextColor="#8d86a6"
+        value={values.state}
+        onChangeText={(state) => onChange({ state, latitude: null, longitude: null })}
       />
       <View className="mt-3 rounded-3xl border border-line bg-mist/70 px-4 py-3">
         <Text className="text-sm text-mute" style={{ fontFamily: 'Inter_500Medium', color: '#2a2348' }}>
@@ -144,7 +159,10 @@ export function EventEditorFields({
       <VenueMapPicker
         visible={mapOpen}
         venueName={values.venueName}
-        address={values.location}
+        address={formatEditorAddress(values)}
+        street={values.street}
+        city={values.city}
+        state={values.state}
         initial={pin}
         onClose={() => setMapOpen(false)}
         onConfirm={(point) => {
@@ -300,11 +318,47 @@ export function EventEditorFields({
   )
 }
 
+export function formatEditorAddress(values: {
+  street: string
+  city: string
+  state: string
+}): string {
+  return [values.street, values.city, values.state]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(', ')
+}
+
+/** Parte un location guardado en calle, ciudad y estado para el formulario. */
+export function splitStoredLocation(location: string | null | undefined): {
+  street: string
+  city: string
+  state: string
+} {
+  const parts = (location ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (parts.length >= 3) {
+    return {
+      street: parts.slice(0, -2).join(', '),
+      city: parts[parts.length - 2] ?? '',
+      state: parts[parts.length - 1] ?? '',
+    }
+  }
+  if (parts.length === 2) {
+    return { street: parts[0] ?? '', city: parts[1] ?? '', state: '' }
+  }
+  return { street: parts[0] ?? '', city: '', state: '' }
+}
+
 export function emptyEventEditorValues(): EventEditorValues {
   return {
     name: '',
     venueName: '',
-    location: '',
+    street: '',
+    city: '',
+    state: '',
     latitude: null,
     longitude: null,
     starts: '',
@@ -321,10 +375,11 @@ export function emptyEventEditorValues(): EventEditorValues {
 
 export function buildEventPayload(values: EventEditorValues) {
   const tableCount = Number(values.tableCount)
+  const location = formatEditorAddress(values)
   return {
     name: values.name.trim(),
     venue_name: values.venueName.trim() || undefined,
-    location: values.location.trim() || undefined,
+    location: location || undefined,
     latitude:
       typeof values.latitude === 'number' && Number.isFinite(values.latitude)
         ? values.latitude

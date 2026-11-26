@@ -14,11 +14,17 @@ export class GeoController {
     @Query('q') q?: string,
     @Query('address') address?: string,
     @Query('venue') venue?: string,
+    @Query('street') street?: string,
+    @Query('city') city?: string,
+    @Query('state') state?: string,
   ) {
     return this.geoService.search({
       q: q?.trim() || undefined,
       address: address?.trim() || undefined,
       venue: venue?.trim() || undefined,
+      street: street?.trim() || undefined,
+      city: city?.trim() || undefined,
+      state: state?.trim() || undefined,
     });
   }
 }

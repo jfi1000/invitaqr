@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   buildEventPayload,
   emptyEventEditorValues,
+  splitStoredLocation,
   EventEditorFields,
   EventEditorValues,
 } from '../../../../components/EventEditorFields'
@@ -146,7 +147,7 @@ export default function EventDetailScreen() {
     setValues({
       name: event.name,
       venueName: event.venueName ?? '',
-      location: event.location ?? '',
+      ...splitStoredLocation(event.location),
       latitude: event.latitude ?? null,
       longitude: event.longitude ?? null,
       starts: fromIsoLocal(event.startsAt),

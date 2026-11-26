@@ -17,6 +17,9 @@ interface VenueMapPickerProps {
   visible: boolean
   venueName: string
   address: string
+  street?: string
+  city?: string
+  state?: string
   initial?: { latitude: number; longitude: number } | null
   onClose: () => void
   onConfirm: (point: GeoPoint) => void
@@ -181,6 +184,9 @@ export function VenueMapPicker({
   visible,
   venueName,
   address,
+  street,
+  city,
+  state,
   initial,
   onClose,
   onConfirm,
@@ -216,7 +222,13 @@ export function VenueMapPicker({
       setLoading(true)
       setError(null)
       try {
-        const found = await geocodeAddress(query, { venueName, address })
+        const found = await geocodeAddress(query, {
+          venueName,
+          address,
+          street,
+          city,
+          state,
+        })
         if (cancelled) return
         if (!found) {
           setError(
@@ -250,7 +262,7 @@ export function VenueMapPicker({
     return () => {
       cancelled = true
     }
-  }, [visible, venueName, address, initial?.latitude, initial?.longitude])
+  }, [visible, venueName, address, street, city, state, initial?.latitude, initial?.longitude])
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

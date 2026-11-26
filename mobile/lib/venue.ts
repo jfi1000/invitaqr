@@ -13,13 +13,22 @@ const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').rep
 /** Geocodifica vía API (Nominatim con variantes MX; sin CORS en web). */
 export async function geocodeAddress(
   query: string,
-  parts?: { venueName?: string; address?: string },
+  parts?: {
+    venueName?: string
+    address?: string
+    street?: string
+    city?: string
+    state?: string
+  },
 ): Promise<GeoPoint | null> {
   const params = new URLSearchParams()
   const q = query.trim()
   if (q) params.set('q', q)
   if (parts?.address?.trim()) params.set('address', parts.address.trim())
   if (parts?.venueName?.trim()) params.set('venue', parts.venueName.trim())
+  if (parts?.street?.trim()) params.set('street', parts.street.trim())
+  if (parts?.city?.trim()) params.set('city', parts.city.trim())
+  if (parts?.state?.trim()) params.set('state', parts.state.trim())
   if (![...params.keys()].length) return null
 
   const response = await fetch(`${API_URL}/geo/search?${params.toString()}`, {

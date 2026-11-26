@@ -53,7 +53,28 @@ export class GeoService {
     q?: string;
     address?: string;
     venue?: string;
+    street?: string;
+    city?: string;
+    state?: string;
   }): Promise<GeoHit | null> {
+    if (input.street || input.city || input.state) {
+      const hit = await this.nominatimStructured({
+        street: input.street,
+        city: input.city,
+        state: input.state,
+      });
+      if (hit) return { ...hit, approximate: false, queryUsed: 'structured' };
+      await delay(1100);
+      if (input.city || input.state) {
+        const hit2 = await this.nominatimStructured({
+          city: input.city,
+          state: input.state,
+        });
+        if (hit2) return { ...hit2, approximate: true, queryUsed: 'city+state' };
+        await delay(1100);
+      }
+    }
+
     const queries = this.buildQueries(input);
     for (let i = 0; i < queries.length; i += 1) {
       const hit = await this.nominatim(queries[i]);
@@ -144,6 +165,45 @@ export class GeoService {
         return STATE_EXPAND[key] ?? trimmed;
       })
       .join(', ');
+  }
+
+  private async nominatimStructured(parts: {
+    street?: string;
+    city?: string;
+    state?: string;
+  }): Promise<Omit<GeoHit, 'approximate' | 'queryUsed'> | null> {
+    const params = new URLSearchParams({
+      format: 'json',
+      limit: '1',
+      countrycodes: 'mx',
+    });
+    if (parts.street) params.set('street', parts.street);
+    if (parts.city) params.set('city', parts.city);
+    if (parts.state) params.set('state', parts.state);
+    params.set('country', 'México');
+    const url = `${NOMINATIM}?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent':
+          'InvitaQR/1.0 (event venue geocoder; contact@invitaqr.local)',
+      },
+    });
+    if (!response.ok) return null;
+    const rows = (await response.json()) as Array<{
+      lat: string;
+      lon: string;
+      display_name?: string;
+    }>;
+    const hit = rows[0];
+    if (!hit) return null;
+    return {
+      latitude: Number(hit.lat),
+      longitude: Number(hit.lon),
+      label:
+        hit.display_name ??
+        [parts.street, parts.city, parts.state].filter(Boolean).join(', '),
+    };
   }
 
   private async nominatim(query: string): Promise<Omit<
